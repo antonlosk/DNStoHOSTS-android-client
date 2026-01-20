@@ -1,6 +1,6 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.jetbrains.kotlin.android)
+    id("com.android.application") version "8.2.2"
+    id("org.jetbrains.kotlin.android") version "1.9.22"
 }
 
 android {
@@ -39,7 +39,7 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
     packaging {
         resources {
@@ -58,6 +58,6 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     
-    // Networking (OkHttp for DoH)
+    // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
