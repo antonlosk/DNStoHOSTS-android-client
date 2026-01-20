@@ -25,7 +25,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
-        gradle-version: '9.3.0'
+        gradle-version: '8.5'
 
     # --- ЛОГИКА ВЕРСИЙ ---
     - name: Calculate Next Version
