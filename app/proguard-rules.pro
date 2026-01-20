@@ -1,26 +1,26 @@
-# Add project specific ProGuard rules here.
-# By default, the flags in this file are appended to flags specified
-# in /files/proguard-android-optimize.txt
-# --- OkHttp Rules ---
-# OkHttp использует Okio и рефлексию, нужно сохранить эти классы
--keepattributes Signature
--keepattributes *Annotation*
--keep class okhttp3.** { *; }
--keep interface okhttp3.** { *; }
+# --- Оптимизация ---
+# Разрешаем R8 менять имена методов и полей для максимального сжатия
+-repackageclasses ''
+-allowaccessmodification
+
+# --- OkHttp ---
+# OkHttp 4+ на Kotlin хорошо дружит с R8, оставляем только подавление варнингов,
+# которые могут возникнуть из-за старых зависимостей Java
 -dontwarn okhttp3.**
 -dontwarn okio.**
-
-# --- Kotlin Coroutines ---
-# Чтобы не сломалась многопоточность
--keep class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
--keep class kotlinx.coroutines.android.AndroidExceptionPreHandler { *; }
--keep class kotlinx.coroutines.android.AndroidDispatcherFactory { *; }
+-dontwarn javax.annotation.**
 
 # --- Jetpack Compose ---
-# Стандартные правила для Compose обычно встроены в библиотеку,
-# но эти правила гарантируют совместимость
--keep class androidx.compose.** { *; }
+# НЕ ПИШЕМ сюда -keep class androidx.compose.**
+# Compose сам знает, что ему нужно оставить.
 
-# --- Android Entry Points ---
-# Сохраняем Activity и Application, иначе Android не сможет запустить приложение
--keep class com.dnstohosts.app.** { *; }
+# --- Общие правила ---
+# Сохраняем атрибуты, полезные для отладки крашей (можно убрать для еще большего сжатия, но не советую)
+-keepattributes SourceFile,LineNumberTable
+-keepattributes *Annotation*
+-keepattributes Signature
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
+
+# Если вдруг приложение упадет с ошибкой "Class not found" для MainActivity (редко, но бывает)
+-keep class com.dnstohosts.app.MainActivity { <init>(); }
