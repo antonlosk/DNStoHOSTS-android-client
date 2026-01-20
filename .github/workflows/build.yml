@@ -1,0 +1,33 @@
+name: Build Android APK
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Install Fyne dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc golang-go libgl1-mesa-dev xorg-dev
+
+      - name: Install fyne-cross
+        run: go install github.com/fyne-io/fyne-cross@latest
+
+      - name: Build APK using fyne-cross
+        # Используем образ Docker для сборки под Android
+        run: |
+          ~/go/bin/fyne-cross android -app-id com.dnstohosts.app -name DNStoHOSTS -icon icon.png .
+          # Примечание: Если нет иконки, можно убрать флаг -icon, но лучше добавить файл icon.png (512x512)
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DNStoHOSTS.apk
+          path: fyne-cross/bin/android/DNStoHOSTS.apk
