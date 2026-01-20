@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Разрешение на создание релизов
+      contents: write # Разрешение на загрузку релизов
 
     steps:
     - name: Checkout code
@@ -27,15 +27,19 @@ jobs:
         gradle-version: '8.5'
         cache-disabled: true
 
-    # 1. Декодируем Keystore из секретов в файл
+    # Исправленный шаг: проверка наличия ключа через Bash
     - name: Decode Keystore
-      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-      run: |
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      run: |
+        if [ ! -z "$KEYSTORE_BASE64" ]; then
+          echo "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          echo "Keystore successfully decoded."
+        else
+          echo "No keystore secret found. Using debug keystore automatically."
+        fi
 
-    # 2. Собираем RELEASE (используя секреты для подписи)
+    # Сборка
     - name: Build Release APK
       run: gradle assembleRelease --stacktrace
       env:
@@ -43,18 +47,18 @@ jobs:
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         ALIAS_PASSWORD: ${{ secrets.ALIAS_PASSWORD }}
 
-    # 3. Переименовываем APK для красоты
+    # Переименование для удобства
     - name: Rename APK
       run: |
         mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/DNStoHOSTS.apk
 
-    # 4. Создаем (или обновляем) релиз "Latest Build" и загружаем файл
+    # Загрузка в релизы
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: latest
         name: Latest Build
-        body: "Автоматическая сборка последней версии."
+        body: "Автоматическая сборка последней версии. Если вы не настраивали ключи, используется тестовая подпись."
         draft: false
         prerelease: false
         files: app/build/outputs/apk/release/DNStoHOSTS.apk
