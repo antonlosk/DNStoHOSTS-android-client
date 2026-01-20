@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	// "path/filepath" // УДАЛЕНО: не использовался
 	"strings"
 	"sync"
 	"time"
@@ -128,7 +127,6 @@ func main() {
 
 	// UI Components
 	logWidget = widget.NewMultiLineEntry()
-	// ИСПРАВЛЕНО: ReadOnly заменено на Disable, но цвет текста исправлен в theme.go
 	logWidget.Disable() 
 	logWidget.TextStyle = fyne.TextStyle{Monospace: true}
 	logWidget.Wrapping = fyne.TextWrapWord
@@ -141,7 +139,6 @@ func main() {
 		stopResolving()
 	})
 	btnClear := widget.NewButton("Clear Log", func() {
-		// Для изменения текста в Disabled виджете нужно на мгновение включить его
 		logWidget.Enable()
 		logWidget.SetText("")
 		logWidget.Disable()
@@ -156,10 +153,6 @@ func main() {
     
     logScroll := container.NewScroll(logWidget)
     
-    // ИСПРАВЛЕНО: Удалена неиспользуемая переменная bottomContainerWithMin
-    // Bottom container
-    // bottomContainer := container.New(layout.NewBorderLayout(nil, nil, nil, nil), progressBar)
-
 	content := container.New(layout.NewBorderLayout(buttonContainer, progressBar, nil, nil),
 		buttonContainer,
 		progressBar,
@@ -174,7 +167,6 @@ func main() {
 
 func appendLog(msg string) {
 	// Must be on main thread
-	// Трюк для обновления текста в отключенном (read-only) виджете
 	logWidget.Enable()
 	
 	// Get current time
@@ -186,6 +178,35 @@ func appendLog(msg string) {
 	
 	logWidget.Disable()
 	logWidget.Refresh()
+}
+
+// Helper to create default files if they don't exist
+func ensureDefaults() {
+	// 1. settings.txt
+	if _, err := os.Stat("settings.txt"); os.IsNotExist(err) {
+		defaultSettings := `adress=dns.geohide.ru
+port=8443
+ipv4=true
+ipv6=false`
+		err := os.WriteFile("settings.txt", []byte(defaultSettings), 0644)
+		if err == nil {
+			appendLog("Created default settings.txt")
+		} else {
+			appendLog(fmt.Sprintf("Failed to create settings.txt: %v", err))
+		}
+	}
+
+	// 2. input.txt
+	if _, err := os.Stat("input.txt"); os.IsNotExist(err) {
+		defaultInput := `#Supercell
+cdn.id.supercell.com`
+		err := os.WriteFile("input.txt", []byte(defaultInput), 0644)
+		if err == nil {
+			appendLog("Created default input.txt")
+		} else {
+			appendLog(fmt.Sprintf("Failed to create input.txt: %v", err))
+		}
+	}
 }
 
 func startResolving() {
@@ -208,6 +229,9 @@ func startResolving() {
 		}()
 
 		appendLog("Starting to resolve domains...")
+		
+		// Ensure files exist before reading
+		ensureDefaults()
         
         // 1. Read Settings
 		appendLog("Reading settings.txt...")
@@ -291,6 +315,10 @@ func startResolving() {
             progressBar.SetState(0) // Back to idle/error
         } else {
             appendLog(fmt.Sprintf("Successfully wrote %d lines to output.txt", len(outputLines)))
+            // Also log absolute path to help user find it
+            if cwd, err := os.Getwd(); err == nil {
+                appendLog(fmt.Sprintf("File location: %s/output.txt", cwd))
+            }
             progressBar.SetState(2) // Green
         }
 	}()
