@@ -25,7 +25,7 @@ jobs:
       uses: gradle/actions/setup-gradle@v3
       with:
         gradle-version: '8.5'
-        cache-disabled: true
+        cache-disabled: false
 
     # Исправленный шаг: проверка наличия ключа через Bash
     - name: Decode Keystore
