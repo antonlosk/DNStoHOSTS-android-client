@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath" // Added for path joining
 	"strings"
 	"sync"
 	"time"
@@ -180,31 +181,45 @@ func appendLog(msg string) {
 	logWidget.Refresh()
 }
 
+// Helper to get safe storage path on Android
+func getStoragePath(filename string) string {
+    // os.UserHomeDir on Android returns the internal app files directory
+    dir, err := os.UserHomeDir()
+    if err != nil {
+        // Fallback for desktop testing
+        return filename
+    }
+    return filepath.Join(dir, filename)
+}
+
 // Helper to create default files if they don't exist
 func ensureDefaults() {
+    settingsPath := getStoragePath("settings.txt")
+    inputPath := getStoragePath("input.txt")
+
 	// 1. settings.txt
-	if _, err := os.Stat("settings.txt"); os.IsNotExist(err) {
+	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 		defaultSettings := `adress=dns.geohide.ru
 port=8443
 ipv4=true
 ipv6=false`
-		err := os.WriteFile("settings.txt", []byte(defaultSettings), 0644)
+		err := os.WriteFile(settingsPath, []byte(defaultSettings), 0644)
 		if err == nil {
-			appendLog("Created default settings.txt")
+			appendLog(fmt.Sprintf("Created default: %s", settingsPath))
 		} else {
-			appendLog(fmt.Sprintf("Failed to create settings.txt: %v", err))
+			appendLog(fmt.Sprintf("Failed to create settings: %v", err))
 		}
 	}
 
 	// 2. input.txt
-	if _, err := os.Stat("input.txt"); os.IsNotExist(err) {
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
 		defaultInput := `#Supercell
 cdn.id.supercell.com`
-		err := os.WriteFile("input.txt", []byte(defaultInput), 0644)
+		err := os.WriteFile(inputPath, []byte(defaultInput), 0644)
 		if err == nil {
-			appendLog("Created default input.txt")
+			appendLog(fmt.Sprintf("Created default: %s", inputPath))
 		} else {
-			appendLog(fmt.Sprintf("Failed to create input.txt: %v", err))
+			appendLog(fmt.Sprintf("Failed to create input: %v", err))
 		}
 	}
 }
@@ -314,11 +329,9 @@ func startResolving() {
             appendLog(fmt.Sprintf("Error writing output: %v", err))
             progressBar.SetState(0) // Back to idle/error
         } else {
-            appendLog(fmt.Sprintf("Successfully wrote %d lines to output.txt", len(outputLines)))
-            // Also log absolute path to help user find it
-            if cwd, err := os.Getwd(); err == nil {
-                appendLog(fmt.Sprintf("File location: %s/output.txt", cwd))
-            }
+            outputPath := getStoragePath("output.txt")
+            appendLog(fmt.Sprintf("Successfully wrote %d lines to:", len(outputLines)))
+            appendLog(outputPath)
             progressBar.SetState(2) // Green
         }
 	}()
@@ -341,7 +354,7 @@ func readSettings() (Config, error) {
         IPv6: false,
     }
     
-    path := "settings.txt" 
+    path := getStoragePath("settings.txt")
     file, err := os.Open(path)
     if err != nil {
         return cfg, err
@@ -376,7 +389,7 @@ func readSettings() (Config, error) {
 }
 
 func readInput() ([]DomainGroup, int, error) {
-    path := "input.txt"
+    path := getStoragePath("input.txt")
     file, err := os.Open(path)
     if err != nil {
         return nil, 0, err
@@ -417,7 +430,7 @@ func readInput() ([]DomainGroup, int, error) {
 }
 
 func writeOutput(lines []string) error {
-    path := "output.txt"
+    path := getStoragePath("output.txt")
     f, err := os.Create(path)
     if err != nil {
         return err
