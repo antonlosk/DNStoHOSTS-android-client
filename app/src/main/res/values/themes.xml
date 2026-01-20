@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Базовая тема наследуется от Material 3 -->
+    <style name="Theme.DNStoHOSTS" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Цвета статус-бара (системной строки сверху) -->
+        <item name="android:statusBarColor">#121212</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- Цвет фона окна при загрузке -->
+        <item name="android:windowBackground">#121212</item>
+    </style>
+</resources>
