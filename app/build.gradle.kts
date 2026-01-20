@@ -14,8 +14,14 @@ android {
         applicationId = "com.dnstohosts.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        
+        // Читаем версию из параметров командной строки (-PversionName=...)
+        // Если не передали, используем "1.0.0"
+        val cmdVersionName = project.findProperty("versionName") as? String
+        val cmdVersionCode = project.findProperty("versionCode") as? String
+
+        versionCode = cmdVersionCode?.toIntOrNull() ?: 1
+        versionName = cmdVersionName ?: "1.0.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -24,7 +30,6 @@ android {
 
     signingConfigs {
         create("release") {
-            // Пытаемся найти keystore, который создаст GitHub Action
             val keystoreFile = rootProject.file("release.keystore")
             if (keystoreFile.exists()) {
                 storeFile = keystoreFile
@@ -32,9 +37,7 @@ android {
                 keyAlias = System.getenv("KEY_ALIAS")
                 keyPassword = System.getenv("ALIAS_PASSWORD")
             } else {
-                // Если ключа нет - используем debug ключ, но собираем как release
-                // Это позволяет получить APK даже без настройки секретов
-                storeFile = rootProject.file("debug.keystore") // Будет сгенерирован системой если нет
+                storeFile = rootProject.file("debug.keystore")
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
                 keyPassword = "android"
