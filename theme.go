@@ -30,7 +30,11 @@ func (m androidTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant)
 		return colorSurface
 	case theme.ColorNameInputBackground:
 		return colorInputBackground
-	case theme.ColorNameForeground, theme.ColorNameButtonForeground:
+	// Исправлено: Убрали ColorNameButtonForeground, добавили ColorNameDisabled
+	case theme.ColorNameForeground:
+		return colorText
+	case theme.ColorNameDisabled:
+		// Возвращаем белый цвет даже для отключенных виджетов (лога), чтобы он был читаем
 		return colorText
 	case theme.ColorNamePrimary:
 		return colorPrimary
