@@ -226,14 +226,22 @@ fun MainScreen(filesDir: File) {
                 .padding(16.dp)
         ) {
             // --- Top Bar / Title ---
-            Text(
-                text = "DNStoHOSTS",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                ),
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
+            Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                Text(
+                    text = "DNStoHOSTS",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                )
+                Text(
+                    text = "by antonlosk",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Normal,
+                        color = Color.Gray
+                    )
+                )
+            }
 
             // --- Control Buttons ---
             Row(
@@ -472,7 +480,6 @@ fun parseDnsResponsePacket(data: ByteArray, reqType: Int): List<String> {
     val dis = DataInputStream(ByteArrayInputStream(data))
 
     try {
-        // Читаем заголовок, но не сохраняем в переменные (чтобы убрать warnings)
         dis.readShort() // ID
         dis.readShort() // Flags
         val qdCount = dis.readShort()
