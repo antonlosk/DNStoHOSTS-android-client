@@ -13,7 +13,6 @@ jobs:
           go-version: '1.23'
 
       - name: Install dependencies
-        # Этот шаг критически важен для устранения ошибки "missing go.sum"
         run: |
           go mod tidy
           go get .
@@ -27,14 +26,14 @@ jobs:
         run: go install github.com/fyne-io/fyne-cross@latest
 
       - name: Build APK using fyne-cross
-        # Флаг -icon требует наличия файла icon.png. Если его нет, уберите -icon icon.png
+        # Попытка собрать с иконкой
         run: |
           ~/go/bin/fyne-cross android -app-id com.dnstohosts.app -name DNStoHOSTS -icon icon.png .
         continue-on-error: true
       
-      # Если предыдущий шаг не удался из-за иконки, пробуем без нее
       - name: Build APK using fyne-cross (Fallback without icon)
         if: failure()
+        # Если иконки нет, собираем без нее
         run: |
           ~/go/bin/fyne-cross android -app-id com.dnstohosts.app -name DNStoHOSTS .
 
@@ -42,4 +41,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DNStoHOSTS.apk
-          path: fyne-cross/bin/android/DNStoHOSTS.apk
+          # ИСПРАВЛЕНО: путь ведет к dist/android, а не bin/android
+          path: fyne-cross/dist/android/DNStoHOSTS.apk
