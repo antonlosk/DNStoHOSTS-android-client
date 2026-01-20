@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -473,24 +472,25 @@ fun parseDnsResponsePacket(data: ByteArray, reqType: Int): List<String> {
     val dis = DataInputStream(ByteArrayInputStream(data))
 
     try {
-        val id = dis.readShort()
-        val flags = dis.readShort()
+        // Читаем заголовок, но не сохраняем в переменные (чтобы убрать warnings)
+        dis.readShort() // ID
+        dis.readShort() // Flags
         val qdCount = dis.readShort()
         val anCount = dis.readShort()
-        val nsCount = dis.readShort()
-        val arCount = dis.readShort()
+        dis.readShort() // nsCount
+        dis.readShort() // arCount
 
         for (i in 0 until qdCount) {
             skipName(dis)
-            dis.readShort()
-            dis.readShort()
+            dis.readShort() // QTYPE
+            dis.readShort() // QCLASS
         }
 
         for (i in 0 until anCount) {
             skipName(dis)
             val type = dis.readShort().toInt() and 0xFFFF
-            val clazz = dis.readShort().toInt() and 0xFFFF
-            val ttl = dis.readInt()
+            dis.readShort() // Class
+            dis.readInt()   // TTL
             val rdLength = dis.readShort().toInt() and 0xFFFF
 
             val rData = ByteArray(rdLength)
