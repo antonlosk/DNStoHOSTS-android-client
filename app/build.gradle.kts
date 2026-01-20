@@ -15,8 +15,7 @@ android {
         minSdk = 26
         targetSdk = 34
         
-        // Читаем версию из параметров командной строки (-PversionName=...)
-        // Если не передали, используем "1.0.0"
+        // Получаем версию от GitHub Actions
         val cmdVersionName = project.findProperty("versionName") as? String
         val cmdVersionCode = project.findProperty("versionCode") as? String
 
@@ -47,12 +46,17 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("release")
+            // --- ОПТИМИЗАЦИЯ ВКЛЮЧЕНА ЗДЕСЬ ---
+            isMinifyEnabled = true       // Включает R8 (сжатие кода и обфускация)
+            isShrinkResources = true     // Удаляет неиспользуемые ресурсы
+            
+            // Используем rules для агрессивной оптимизации
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
