@@ -58,6 +58,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     
+    // !!! ВОТ ЭТА БИБЛИОТЕКА НУЖНА ДЛЯ themes.xml (Material 3 XML styles) !!!
+    implementation("com.google.android.material:material:1.11.0")
+    
     // Сеть
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
 }
