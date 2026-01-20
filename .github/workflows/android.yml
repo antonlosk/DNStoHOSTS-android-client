@@ -26,6 +26,7 @@ jobs:
       uses: gradle/actions/setup-gradle@v3
       with:
         gradle-version: '8.5'
+        cache-disabled: true
 
     # --- ЛОГИКА ВЕРСИЙ ---
     - name: Calculate Next Version
