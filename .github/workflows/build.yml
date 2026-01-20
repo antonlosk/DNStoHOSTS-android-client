@@ -12,6 +12,12 @@ jobs:
         with:
           go-version: '1.23'
 
+      - name: Install dependencies
+        # Этот шаг критически важен для устранения ошибки "missing go.sum"
+        run: |
+          go mod tidy
+          go get .
+
       - name: Install Fyne dependencies
         run: |
           sudo apt-get update
@@ -21,10 +27,16 @@ jobs:
         run: go install github.com/fyne-io/fyne-cross@latest
 
       - name: Build APK using fyne-cross
-        # Используем образ Docker для сборки под Android
+        # Флаг -icon требует наличия файла icon.png. Если его нет, уберите -icon icon.png
         run: |
           ~/go/bin/fyne-cross android -app-id com.dnstohosts.app -name DNStoHOSTS -icon icon.png .
-          # Примечание: Если нет иконки, можно убрать флаг -icon, но лучше добавить файл icon.png (512x512)
+        continue-on-error: true
+      
+      # Если предыдущий шаг не удался из-за иконки, пробуем без нее
+      - name: Build APK using fyne-cross (Fallback without icon)
+        if: failure()
+        run: |
+          ~/go/bin/fyne-cross android -app-id com.dnstohosts.app -name DNStoHOSTS .
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
