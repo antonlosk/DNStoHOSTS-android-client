@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -19,9 +22,30 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            // Пытаемся найти keystore, который создаст GitHub Action
+            val keystoreFile = rootProject.file("release.keystore")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEY_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("ALIAS_PASSWORD")
+            } else {
+                // Если ключа нет - используем debug ключ, но собираем как release
+                // Это позволяет получить APK даже без настройки секретов
+                storeFile = rootProject.file("debug.keystore") // Будет сгенерирован системой если нет
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -57,10 +81,6 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    
-    // !!! ВОТ ЭТА БИБЛИОТЕКА НУЖНА ДЛЯ themes.xml (Material 3 XML styles) !!!
     implementation("com.google.android.material:material:1.11.0")
-    
-    // Сеть
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
 }
