@@ -35,8 +35,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             DNStoHOSTSTheme {
-                // Using getExternalFilesDir(null) maps to:
-                // /storage/emulated/0/Android/data/com.dnstohosts.app/files/
                 val filesDir = getExternalFilesDir(null) ?: filesDir
                 MainScreen(filesDir = filesDir)
             }
@@ -48,8 +46,8 @@ class MainActivity : ComponentActivity() {
 
 enum class ProcessState {
     IDLE,       // Grey bar
-    RESOLVING,  // Blue indeterminate bar
-    FINISHED    // Green full bar
+    RESOLVING,  // Blue indeterminate
+    FINISHED    // Green full
 }
 
 data class AppSettings(
@@ -59,18 +57,19 @@ data class AppSettings(
     val ipv6: Boolean = false
 )
 
-// --- UI Theme (Android 16 Dark Style) ---
+// --- UI Theme (Android 16 / WireGuard Dark Style) ---
 
 @Composable
 fun DNStoHOSTSTheme(content: @Composable () -> Unit) {
+    // Forced Dark Theme Colors
     val darkColors = darkColorScheme(
-        primary = Color(0xFF6750A4), // Modern Purple/Blue tone
-        onPrimary = Color.White,
-        background = Color(0xFF121212), // Deep dark background
-        surface = Color(0xFF1E1E1E), // Slightly lighter surface
-        onSurface = Color(0xFFE6E1E5),
-        error = Color(0xFFCF6679),
-        surfaceVariant = Color(0xFF49454F)
+        primary = Color(0xFF82B1FF),    // Светло-синий акцент
+        onPrimary = Color.Black,
+        background = Color(0xFF000000), // Абсолютно черный фон (WireGuard style)
+        surface = Color(0xFF1C1C1E),    // Темно-серые карточки (iOS/Android 16 style)
+        onSurface = Color(0xFFE5E5E5),  // Белый текст
+        surfaceVariant = Color(0xFF2C2C2E),
+        error = Color(0xFFCF6679)
     )
 
     MaterialTheme(
@@ -91,7 +90,6 @@ fun MainScreen(filesDir: File) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberLazyListState()
 
-    // Auto-scroll to bottom
     LaunchedEffect(logs.size) {
         if (logs.isNotEmpty()) {
             scrollState.animateScrollToItem(logs.size - 1)
@@ -120,8 +118,6 @@ fun MainScreen(filesDir: File) {
     fun startProcess() {
         if (processState == ProcessState.RESOLVING) return
         
-        // Don't clear log automatically on start based on request, 
-        // but state resets to RESOLVING (Blue)
         processState = ProcessState.RESOLVING
         
         job = scope.launch(Dispatchers.IO) {
@@ -149,38 +145,33 @@ fun MainScreen(filesDir: File) {
                 }
 
                 val inputLines = inputFile.readLines()
-                // Filter distinct domains for counting, but we process line by line to preserve structure
                 val domainsToProcess = inputLines.filter { it.isNotBlank() && !it.trim().startsWith("#") }
                 appendLog("Found ${domainsToProcess.size} domains to resolve")
                 appendLog("----------------------------------------")
 
                 val outputLines = mutableListOf<String>()
                 
-                // OkHttp Client setup
                 val client = OkHttpClient.Builder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.SECONDS)
                     .build()
 
                 for (line in inputLines) {
-                    if (!isActive) break // Coroutine cancelled
+                    if (!isActive) break
 
                     val trimmed = line.trim()
                     
-                    // Handle empty lines
                     if (trimmed.isEmpty()) {
                         outputLines.add("")
                         continue
                     }
 
-                    // Handle comments
                     if (trimmed.startsWith("#")) {
-                        appendLog(trimmed) // Log the comment as requested
+                        appendLog(trimmed)
                         outputLines.add(trimmed)
                         continue
                     }
 
-                    // Resolve Domain
                     val domain = trimmed
                     appendLog("Resolving: $domain")
                     
@@ -216,18 +207,17 @@ fun MainScreen(filesDir: File) {
                 }
 
             } catch (e: CancellationException) {
-                // Handled in stopProcess
+                // Handled
             } catch (e: Exception) {
                 appendLog("Error: ${e.message}")
-                processState = ProcessState.IDLE // Revert to grey on error? Or finish?
-                // Let's keep it Finished or Idle.
+                // Keep state as is or reset
             }
         }
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background // Black
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -235,99 +225,163 @@ fun MainScreen(filesDir: File) {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // --- Top Buttons ---
+            // --- Top Bar / Title ---
+            Text(
+                text = "DNStoHOSTS",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                ),
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            // --- Control Buttons ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Start Button
                 Button(
                     onClick = { startProcess() },
                     enabled = processState != ProcessState.RESOLVING,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2C2C2E), // Dark Grey button
+                        contentColor = Color(0xFF82B1FF),   // Blue text
+                        disabledContainerColor = Color(0xFF1C1C1E),
+                        disabledContentColor = Color.Gray
+                    )
                 ) {
-                    Text("Start")
+                    Text("Start", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
                 
+                // Stop Button
                 Button(
                     onClick = { stopProcess() },
                     enabled = processState == ProcessState.RESOLVING,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2C2C2E),
+                        contentColor = Color(0xFFFF453A),   // Red text
+                        disabledContainerColor = Color(0xFF1C1C1E),
+                        disabledContentColor = Color.Gray
+                    )
                 ) {
-                    Text("Stop")
+                    Text("Stop", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
 
+                // Clear Log
                 Button(
                     onClick = { clearLog() },
                     enabled = processState != ProcessState.RESOLVING,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2C2C2E),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF1C1C1E),
+                        disabledContentColor = Color.Gray
+                    )
                 ) {
-                    Text("Clear Log")
+                    Text("Clear", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // --- Log Area ---
-            Box(
+            Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .background(Color(0xFF1A1A1A), RoundedCornerShape(12.dp))
-                    .border(1.dp, Color(0xFF333333), RoundedCornerShape(12.dp))
-                    .padding(8.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1C1C1E), // Card background
+                tonalElevation = 2.dp
             ) {
-                LazyColumn(
-                    state = scrollState,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(logs) { logLine ->
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Header for Log
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF2C2C2E))
+                            .padding(vertical = 8.dp, horizontal = 16.dp)
+                    ) {
                         Text(
-                            text = logLine,
-                            color = Color(0xFFC0C0C0), // Light grey for text
-                            fontFamily = FontFamily.Monospace,
+                            text = "Execution Log",
+                            color = Color.LightGray,
                             fontSize = 12.sp,
-                            lineHeight = 16.sp
+                            fontWeight = FontWeight.Bold
                         )
+                    }
+                    
+                    // List
+                    LazyColumn(
+                        state = scrollState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp)
+                    ) {
+                        items(logs) { logLine ->
+                            Text(
+                                text = logLine,
+                                color = Color(0xFFD0D0D0),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // --- Progress Bar ---
-            Box(modifier = Modifier.fillMaxWidth().height(6.dp)) {
-                when (processState) {
-                    ProcessState.IDLE -> {
-                        // Grey bar
-                        LinearProgressIndicator(
-                            progress = 0f,
-                            modifier = Modifier.fillMaxWidth(),
-                            trackColor = Color.Gray,
-                            color = Color.Gray
-                        )
-                    }
-                    ProcessState.RESOLVING -> {
-                        // Blue Indeterminate animation
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Color(0xFF448AFF), // Blue
-                            trackColor = Color(0xFF333333)
-                        )
-                    }
-                    ProcessState.FINISHED -> {
-                        // Green Full bar
-                        LinearProgressIndicator(
-                            progress = 1f,
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Color(0xFF4CAF50), // Green
-                            trackColor = Color(0xFF333333)
-                        )
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Status", color = Color.Gray, fontSize = 12.sp)
+                    Text(
+                        text = when(processState) {
+                            ProcessState.IDLE -> "Idle"
+                            ProcessState.RESOLVING -> "Resolving..."
+                            ProcessState.FINISHED -> "Done"
+                        },
+                        color = Color.Gray, 
+                        fontSize = 12.sp
+                    )
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .background(Color(0xFF2C2C2E), RoundedCornerShape(3.dp))
+                        .clip(RoundedCornerShape(3.dp))
+                ) {
+                    when (processState) {
+                        ProcessState.IDLE -> {
+                            // Empty/Grey
+                        }
+                        ProcessState.RESOLVING -> {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxSize(),
+                                color = Color(0xFF0A84FF), // iOS Blue
+                                trackColor = Color(0xFF2C2C2E)
+                            )
+                        }
+                        ProcessState.FINISHED -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF32D74B)) // iOS Green
+                            )
+                        }
                     }
                 }
             }
@@ -363,13 +417,11 @@ fun parseSettings(file: File): AppSettings {
     return AppSettings(address, port, ipv4, ipv6)
 }
 
-// --- Binary DNS Over HTTPS Implementation ---
+// --- Binary DNS Implementation ---
 
 fun executeBinaryDnsQuery(client: OkHttpClient, settings: AppSettings, domain: String, recordType: String): List<String> {
     val qType = if (recordType == "AAAA") 28 else 1
     val queryBytes = createDnsQueryPacket(domain, qType)
-    
-    // Construct URL with custom port
     val url = "https://${settings.address}:${settings.port}/dns-query"
     
     val requestBody = queryBytes.toRequestBody("application/dns-message".toMediaType())
@@ -387,68 +439,54 @@ fun executeBinaryDnsQuery(client: OkHttpClient, settings: AppSettings, domain: S
             parseDnsResponsePacket(bodyBytes, qType)
         }
     } catch (e: Exception) {
-        // e.printStackTrace() // Debug only
         emptyList()
     }
 }
 
-/**
- * Creates a standard DNS Query Packet (Header + Question)
- */
 fun createDnsQueryPacket(domain: String, type: Int): ByteArray {
     val baos = ByteArrayOutputStream()
     val dos = DataOutputStream(baos)
 
-    // 1. Header (12 bytes)
-    dos.writeShort(0x1234) // Transaction ID (Arbitrary)
-    dos.writeShort(0x0100) // Flags: Standard Query, Recursion Desired (RD)
-    dos.writeShort(1)      // Questions
-    dos.writeShort(0)      // Answer RRs
-    dos.writeShort(0)      // Authority RRs
-    dos.writeShort(0)      // Additional RRs
+    dos.writeShort(0x1234)
+    dos.writeShort(0x0100)
+    dos.writeShort(1)
+    dos.writeShort(0)
+    dos.writeShort(0)
+    dos.writeShort(0)
 
-    // 2. Question Section
-    // QNAME: length-prefixed labels
     for (label in domain.split(".")) {
         val bytes = label.toByteArray(Charsets.UTF_8)
         dos.writeByte(bytes.size)
         dos.write(bytes)
     }
-    dos.writeByte(0) // Root label (end of name)
+    dos.writeByte(0)
 
-    dos.writeShort(type) // QTYPE
-    dos.writeShort(1)    // QCLASS (IN)
+    dos.writeShort(type)
+    dos.writeShort(1)
 
     return baos.toByteArray()
 }
 
-/**
- * Parses the DNS Response Packet to extract IP addresses
- */
 fun parseDnsResponsePacket(data: ByteArray, reqType: Int): List<String> {
     val results = mutableListOf<String>()
     val dis = DataInputStream(ByteArrayInputStream(data))
 
     try {
-        // --- Header ---
         val id = dis.readShort()
         val flags = dis.readShort()
-        val qdCount = dis.readShort() // Questions
-        val anCount = dis.readShort() // Answers
+        val qdCount = dis.readShort()
+        val anCount = dis.readShort()
         val nsCount = dis.readShort()
         val arCount = dis.readShort()
 
-        // --- Skip Questions ---
         for (i in 0 until qdCount) {
-            skipName(dis) // Skip QNAME
-            dis.readShort() // QTYPE
-            dis.readShort() // QCLASS
+            skipName(dis)
+            dis.readShort()
+            dis.readShort()
         }
 
-        // --- Parse Answers ---
         for (i in 0 until anCount) {
-            skipName(dis) // NAME (usually a pointer 0xC0xx)
-            
+            skipName(dis)
             val type = dis.readShort().toInt() and 0xFFFF
             val clazz = dis.readShort().toInt() and 0xFFFF
             val ttl = dis.readInt()
@@ -461,34 +499,26 @@ fun parseDnsResponsePacket(data: ByteArray, reqType: Int): List<String> {
                 try {
                     val inetAddress = InetAddress.getByAddress(rData)
                     results.add(inetAddress.hostAddress ?: "")
-                } catch (e: Exception) {
-                    // Malformed IP data
-                }
+                } catch (e: Exception) {}
             }
         }
-    } catch (e: EOFException) {
-        // Packet ended prematurely
-    } catch (e: Exception) {
-        // Parsing error
-    }
+    } catch (e: EOFException) {} catch (e: Exception) {}
 
     return results
 }
 
-// Helper to skip DNS name (labels or pointers)
 fun skipName(dis: DataInputStream) {
     while (true) {
         dis.mark(1)
         val len = dis.readByte().toInt() and 0xFF
-        if (len == 0) return // End of name
-        
+        if (len == 0) return
         if ((len and 0xC0) == 0xC0) {
-            // It's a pointer (2 bytes total), we read 1 byte, need 1 more
             dis.readByte() 
             return
         }
-        
-        // It's a label, skip 'len' bytes
         dis.skipBytes(len)
     }
 }
+
+// Extension to clip background nicely
+fun androidx.compose.ui.Modifier.clip(shape: androidx.compose.ui.graphics.Shape) = androidx.compose.ui.draw.clip(shape)
