@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -519,6 +520,3 @@ fun skipName(dis: DataInputStream) {
         dis.skipBytes(len)
     }
 }
-
-// Extension to clip background nicely
-fun androidx.compose.ui.Modifier.clip(shape: androidx.compose.ui.graphics.Shape) = androidx.compose.ui.draw.clip(shape)
