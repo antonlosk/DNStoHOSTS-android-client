@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
+	// "path/filepath" // УДАЛЕНО: не использовался
 	"strings"
 	"sync"
 	"time"
@@ -39,8 +39,6 @@ type CustomProgressBar struct {
 	widget.BaseWidget
 	rect      *canvas.Rectangle
 	bg        *canvas.Rectangle
-	value     float64 // 0.0 to 1.0
-	animating bool
 	mode      int // 0: Idle (Grey), 1: Resolving (Blue), 2: Done (Green)
 }
 
@@ -68,12 +66,7 @@ func (r *progressRenderer) Layout(s fyne.Size) {
 
 	width := s.Width
 	if r.p.mode == 1 { // Indeterminate/Resolving
-		// Handled by animation loop external to layout usually, 
-        // but for simplicity we will just fill 30% and move it or fill full
-        // The user asked for "moving back and forth". 
-        // We will simulate this by setting color to Blue and width to full for now in simple mode,
-        // or implementing an animation ticker.
-		width = s.Width // Fill full for indeterminate bar style or handle in Ticker
+		width = s.Width 
 	} else if r.p.mode == 0 {
         width = 0
     }
@@ -108,12 +101,6 @@ func (r *progressRenderer) Destroy() {}
 func (p *CustomProgressBar) SetState(state int) {
 	p.mode = state
 	p.Refresh()
-    
-    // Animation logic for "moving back and forth" could be complex here.
-    // To keep it robust: When state 1, we show a blue bar. 
-    // Fyne's infinite progress bar is better for "moving", but user wants specific colors.
-    // For this implementation, we will stick to static colors to ensure stability, 
-    // but toggle the width in the main loop if needed.
 }
 
 // --- Domain Structures ---
@@ -141,10 +128,10 @@ func main() {
 
 	// UI Components
 	logWidget = widget.NewMultiLineEntry()
-	logWidget.ReadOnly = true
+	// ИСПРАВЛЕНО: ReadOnly заменено на Disable, но цвет текста исправлен в theme.go
+	logWidget.Disable() 
 	logWidget.TextStyle = fyne.TextStyle{Monospace: true}
 	logWidget.Wrapping = fyne.TextWrapWord
-    // Custom style handled by theme, but we ensure it expands
     
     // Buttons
 	btnStart := widget.NewButton("Start", func() {
@@ -154,7 +141,10 @@ func main() {
 		stopResolving()
 	})
 	btnClear := widget.NewButton("Clear Log", func() {
+		// Для изменения текста в Disabled виджете нужно на мгновение включить его
+		logWidget.Enable()
 		logWidget.SetText("")
+		logWidget.Disable()
         progressBar.SetState(0) // Reset to grey
 	})
 
@@ -164,13 +154,11 @@ func main() {
 	// Layout
 	buttonContainer := container.NewGridWithColumns(3, btnStart, btnStop, btnClear)
     
-    // Log container with custom background check (Theme handles it)
     logScroll := container.NewScroll(logWidget)
     
+    // ИСПРАВЛЕНО: Удалена неиспользуемая переменная bottomContainerWithMin
     // Bottom container
-    bottomContainer := container.New(layout.NewBorderLayout(nil, nil, nil, nil), progressBar)
-    // Make progress bar have some height
-    bottomContainerWithMin := container.NewStack(bottomContainer)
+    // bottomContainer := container.New(layout.NewBorderLayout(nil, nil, nil, nil), progressBar)
 
 	content := container.New(layout.NewBorderLayout(buttonContainer, progressBar, nil, nil),
 		buttonContainer,
@@ -186,15 +174,18 @@ func main() {
 
 func appendLog(msg string) {
 	// Must be on main thread
-	window.Canvas().Refresh(logWidget)
-    // Get current time
+	// Трюк для обновления текста в отключенном (read-only) виджете
+	logWidget.Enable()
+	
+	// Get current time
     t := time.Now().Format("15:04:05")
     fullMsg := fmt.Sprintf("[%s] %s\n", t, msg)
     
     logWidget.SetText(logWidget.Text + fullMsg)
-    logWidget.Refresh()
-    // Auto scroll to bottom
-    logWidget.CursorRow = len(strings.Split(logWidget.Text, "\n"))
+	logWidget.CursorRow = len(strings.Split(logWidget.Text, "\n"))
+	
+	logWidget.Disable()
+	logWidget.Refresh()
 }
 
 func startResolving() {
@@ -322,7 +313,8 @@ func readSettings() (Config, error) {
         IPv6: false,
     }
     
-    file, err := os.Open(storagePath("settings.txt"))
+    path := "settings.txt" 
+    file, err := os.Open(path)
     if err != nil {
         return cfg, err
     }
@@ -356,7 +348,8 @@ func readSettings() (Config, error) {
 }
 
 func readInput() ([]DomainGroup, int, error) {
-    file, err := os.Open(storagePath("input.txt"))
+    path := "input.txt"
+    file, err := os.Open(path)
     if err != nil {
         return nil, 0, err
     }
@@ -364,7 +357,6 @@ func readInput() ([]DomainGroup, int, error) {
     
     var groups []DomainGroup
     var currentGroup DomainGroup
-    total := 0
     
     scanner := bufio.NewScanner(file)
     for scanner.Scan() {
@@ -374,30 +366,31 @@ func readInput() ([]DomainGroup, int, error) {
         }
         
         if strings.HasPrefix(line, "#") {
-            // Check if we have pending domains in current group
             if len(currentGroup.Domains) > 0 {
                 groups = append(groups, currentGroup)
                 currentGroup = DomainGroup{}
             }
-            // If current group has no domains but has a comment, and we see another comment,
-            // we treat the previous one as a standalone comment line (optional logic)
-            // But per request example: #Supercell -> domains
             currentGroup.Comment = line
         } else {
             currentGroup.Domains = append(currentGroup.Domains, line)
-            total++
         }
     }
-    // Append last group
     if len(currentGroup.Domains) > 0 || currentGroup.Comment != "" {
         groups = append(groups, currentGroup)
+    }
+    
+    // Calculate total domains
+    total := 0
+    for _, g := range groups {
+        total += len(g.Domains)
     }
     
     return groups, total, scanner.Err()
 }
 
 func writeOutput(lines []string) error {
-    f, err := os.Create(storagePath("output.txt"))
+    path := "output.txt"
+    f, err := os.Create(path)
     if err != nil {
         return err
     }
@@ -410,36 +403,22 @@ func writeOutput(lines []string) error {
     return w.Flush()
 }
 
-// storagePath helper for Android to find files. 
-// On real Android, this needs to look in App Storage. 
-// For simplicity in this code, we assume files are in the working dir (App's internal files dir).
-func storagePath(filename string) string {
-    // On Android via Fyne, os.Open usually opens from internal app storage.
-    // The user needs to ensure input.txt exists there or we need to create dummy ones.
-    // For this code, we assume standard path.
-    return filename
-}
-
 // --- DNS Logic (Binary over HTTPS) ---
 
 func resolveDNSBinary(ctx context.Context, domainName string, cfg Config) []string {
     var results []string
     
-    // Helper to perform single query type
     query := func(qType uint16) {
         m := new(dns.Msg)
         m.SetQuestion(dns.Fqdn(domainName), qType)
         m.RecursionDesired = true
         
-        // Pack to binary
         data, err := m.Pack()
         if err != nil {
             appendLog(fmt.Sprintf("Error packing DNS: %v", err))
             return
         }
         
-        // Construct URL: https://address:port/dns-query
-        // Standard DoH path is /dns-query
         url := fmt.Sprintf("https://%s:%s/dns-query", cfg.Address, cfg.Port)
         
         req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(data))
@@ -457,14 +436,11 @@ func resolveDNSBinary(ctx context.Context, domainName string, cfg Config) []stri
         
         resp, err := client.Do(req)
         if err != nil {
-            // appendLog(fmt.Sprintf("Request error: %v", err)) 
-            // Don't spam log if DNS server is unreachable for one IP, but nice to know
             return
         }
         defer resp.Body.Close()
         
         if resp.StatusCode != http.StatusOK {
-            // appendLog(fmt.Sprintf("Server returned %d", resp.StatusCode))
             return
         }
         
@@ -473,7 +449,6 @@ func resolveDNSBinary(ctx context.Context, domainName string, cfg Config) []stri
             return
         }
         
-        // Unpack binary response
         respMsg := new(dns.Msg)
         err = respMsg.Unpack(body)
         if err != nil {
