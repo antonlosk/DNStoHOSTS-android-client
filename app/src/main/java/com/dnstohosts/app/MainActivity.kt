@@ -3,6 +3,7 @@ package com.dnstohosts.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
@@ -20,12 +22,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -64,17 +72,22 @@ data class AppSettings(
     val ipv6: Boolean = false
 )
 
+enum class EditableFile(val fileName: String, val displayName: String) {
+    INPUT("input.txt", "Input"),
+    OUTPUT("output.txt", "Output"),
+    SETTINGS("settings.txt", "Settings")
+}
+
 // --- UI Theme (Android 16 / WireGuard Dark Style) ---
 
 @Composable
 fun DNStoHOSTSTheme(content: @Composable () -> Unit) {
-    // Forced Dark Theme Colors
     val darkColors = darkColorScheme(
-        primary = Color(0xFF82B1FF),    // Светло-синий акцент
+        primary = Color(0xFF82B1FF),
         onPrimary = Color.Black,
-        background = Color(0xFF000000), // Абсолютно черный фон (WireGuard style)
-        surface = Color(0xFF1C1C1E),    // Темно-серые карточки (iOS/Android 16 style)
-        onSurface = Color(0xFFE5E5E5),  // Белый текст
+        background = Color(0xFF000000),
+        surface = Color(0xFF1C1C1E),
+        onSurface = Color(0xFFE5E5E5),
         surfaceVariant = Color(0xFF2C2C2E),
         error = Color(0xFFCF6679)
     )
@@ -94,8 +107,9 @@ fun MainScreen(filesDir: File) {
     var processState by remember { mutableStateOf(ProcessState.IDLE) }
     var job by remember { mutableStateOf<Job?>(null) }
     
-    // State for GitHub Dialog
+    // Dialog States
     var showInfoDialog by remember { mutableStateOf(false) }
+    var editingFile by remember { mutableStateOf<EditableFile?>(null) }
     
     val scope = rememberCoroutineScope()
     val scrollState = rememberLazyListState()
@@ -149,10 +163,10 @@ fun MainScreen(filesDir: File) {
                 appendLog("Reading input.txt...")
                 val inputFile = File(filesDir, "input.txt")
                 if (!inputFile.exists()) {
-                    inputFile.createNewFile()
-                    appendLog("File input.txt not found, created empty file.")
-                    processState = ProcessState.FINISHED
-                    return@launch
+                    // NEW: Create default content if missing
+                    val defaultContent = "# Google\ngoogle.com"
+                    inputFile.writeText(defaultContent)
+                    appendLog("File input.txt created with default content.")
                 }
 
                 val inputLines = inputFile.readLines()
@@ -221,26 +235,24 @@ fun MainScreen(filesDir: File) {
                 // Handled
             } catch (e: Exception) {
                 appendLog("Error: ${e.message}")
-                // Keep state as is or reset
             }
         }
     }
 
-    // --- DIALOG ---
+    // --- DIALOGS ---
+    
     if (showInfoDialog) {
         AlertDialog(
             onDismissRequest = { showInfoDialog = false },
-            containerColor = Color(0xFF1C1C1E), // Match card style
-            title = {
-                Text("Source Code", color = Color.White)
-            },
+            containerColor = Color(0xFF1C1C1E),
+            title = { Text("Source Code", color = Color.White) },
             text = {
                 Column {
                     Text("Project Repository:", color = Color.Gray, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "https://github.com/antonlosk/\nDNStoHOSTS-android-client",
-                        color = Color(0xFF82B1FF), // Link Blue
+                        color = Color(0xFF82B1FF),
                         textDecoration = TextDecoration.Underline,
                         modifier = Modifier.clickable {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/antonlosk/DNStoHOSTS-android-client"))
@@ -257,9 +269,18 @@ fun MainScreen(filesDir: File) {
         )
     }
 
+    // --- FILE EDITOR ---
+    editingFile?.let { fileType ->
+        FileEditorDialog(
+            fileType = fileType,
+            filesDir = filesDir,
+            onDismiss = { editingFile = null }
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background // Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -267,7 +288,7 @@ fun MainScreen(filesDir: File) {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // --- Top Bar (Title + Info Button) ---
+            // --- Top Bar ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -292,7 +313,6 @@ fun MainScreen(filesDir: File) {
                     )
                 }
                 
-                // Info Button
                 IconButton(onClick = { showInfoDialog = true }) {
                     Icon(
                         imageVector = Icons.Outlined.Info,
@@ -308,15 +328,14 @@ fun MainScreen(filesDir: File) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Start Button
                 Button(
                     onClick = { startProcess() },
                     enabled = processState != ProcessState.RESOLVING,
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2C2C2E), // Dark Grey button
-                        contentColor = Color(0xFF82B1FF),   // Blue text
+                        containerColor = Color(0xFF2C2C2E),
+                        contentColor = Color(0xFF82B1FF),
                         disabledContainerColor = Color(0xFF1C1C1E),
                         disabledContentColor = Color.Gray
                     )
@@ -324,7 +343,6 @@ fun MainScreen(filesDir: File) {
                     Text("Start", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
                 
-                // Stop Button
                 Button(
                     onClick = { stopProcess() },
                     enabled = processState == ProcessState.RESOLVING,
@@ -332,7 +350,7 @@ fun MainScreen(filesDir: File) {
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF2C2C2E),
-                        contentColor = Color(0xFFFF453A),   // Red text
+                        contentColor = Color(0xFFFF453A),
                         disabledContainerColor = Color(0xFF1C1C1E),
                         disabledContentColor = Color.Gray
                     )
@@ -340,7 +358,6 @@ fun MainScreen(filesDir: File) {
                     Text("Stop", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
 
-                // Clear Log
                 Button(
                     onClick = { clearLog() },
                     enabled = processState != ProcessState.RESOLVING,
@@ -365,11 +382,10 @@ fun MainScreen(filesDir: File) {
                     .weight(1f)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1C1C1E), // Card background
+                color = Color(0xFF1C1C1E),
                 tonalElevation = 2.dp
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // Header for Log
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -384,7 +400,6 @@ fun MainScreen(filesDir: File) {
                         )
                     }
                     
-                    // List
                     LazyColumn(
                         state = scrollState,
                         modifier = Modifier
@@ -405,7 +420,55 @@ fun MainScreen(filesDir: File) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- File Edit Buttons (NEW) ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val buttonColors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2C2C2E),
+                    contentColor = Color(0xFFCCCCCC)
+                )
+                val buttonModifier = Modifier.weight(1f).height(40.dp)
+                val buttonShape = RoundedCornerShape(8.dp)
+
+                Button(
+                    onClick = { editingFile = EditableFile.INPUT },
+                    enabled = processState != ProcessState.RESOLVING,
+                    modifier = buttonModifier,
+                    shape = buttonShape,
+                    colors = buttonColors,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Input", fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = { editingFile = EditableFile.OUTPUT },
+                    enabled = processState != ProcessState.RESOLVING,
+                    modifier = buttonModifier,
+                    shape = buttonShape,
+                    colors = buttonColors,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Output", fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = { editingFile = EditableFile.SETTINGS },
+                    enabled = processState != ProcessState.RESOLVING,
+                    modifier = buttonModifier,
+                    shape = buttonShape,
+                    colors = buttonColors,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Settings", fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // --- Progress Bar ---
             Column {
@@ -433,13 +496,11 @@ fun MainScreen(filesDir: File) {
                         .clip(RoundedCornerShape(3.dp))
                 ) {
                     when (processState) {
-                        ProcessState.IDLE -> {
-                            // Empty/Grey
-                        }
+                        ProcessState.IDLE -> {}
                         ProcessState.RESOLVING -> {
                             LinearProgressIndicator(
                                 modifier = Modifier.fillMaxSize(),
-                                color = Color(0xFF0A84FF), // iOS Blue
+                                color = Color(0xFF0A84FF),
                                 trackColor = Color(0xFF2C2C2E)
                             )
                         }
@@ -447,8 +508,148 @@ fun MainScreen(filesDir: File) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color(0xFF32D74B)) // iOS Green
+                                    .background(Color(0xFF32D74B))
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- File Editor Component ---
+
+@Composable
+fun FileEditorDialog(
+    fileType: EditableFile,
+    filesDir: File,
+    onDismiss: () -> Unit
+) {
+    val file = File(filesDir, fileType.fileName)
+    var textContent by remember { mutableStateOf("") }
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
+    // Load file content on open
+    LaunchedEffect(fileType) {
+        if (!file.exists()) {
+            if (fileType == EditableFile.INPUT) {
+                textContent = "# Google\ngoogle.com"
+            } else if (fileType == EditableFile.SETTINGS) {
+                textContent = "adress=dns.google\nport=443\nipv4=true\nipv6=false"
+            } else {
+                file.createNewFile()
+                textContent = ""
+            }
+        } else {
+            textContent = file.readText()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false) // Full width
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF1C1C1E),
+            tonalElevation = 4.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                // Header
+                Text(
+                    text = "Editing: ${fileType.displayName}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Editor Area
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(Color(0xFF000000), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color(0xFF333333), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    BasicTextField(
+                        value = textContent,
+                        onValueChange = { textContent = it },
+                        textStyle = TextStyle(
+                            color = Color(0xFFE5E5E5),
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily.Monospace
+                        ),
+                        cursorBrush = SolidColor(Color(0xFF82B1FF)),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Buttons Grid
+                // Row 1: Save / Cancel
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                    ) {
+                        Text("Cancel", color = Color.White)
+                    }
+                    Button(
+                        onClick = {
+                            file.writeText(textContent)
+                            Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF))
+                    ) {
+                        Text("Save", color = Color.White)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Row 2: Copy / Clear / (Reset)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Copy
+                    Button(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(textContent))
+                            Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                    ) {
+                        Text("Copy", color = Color(0xFF82B1FF), fontSize = 12.sp)
+                    }
+
+                    // Clear
+                    Button(
+                        onClick = { textContent = "" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                    ) {
+                        Text("Clear", color = Color(0xFFFF453A), fontSize = 12.sp)
+                    }
+
+                    // Reset (Only for Settings)
+                    if (fileType == EditableFile.SETTINGS) {
+                        Button(
+                            onClick = {
+                                textContent = "adress=dns.google\nport=443\nipv4=true\nipv6=false"
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                        ) {
+                            Text("Reset", color = Color(0xFFFFD60A), fontSize = 12.sp)
                         }
                     }
                 }
