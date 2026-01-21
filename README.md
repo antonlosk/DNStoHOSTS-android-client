@@ -7,8 +7,7 @@
 ---
 
 <p align="center">
-  <!-- Здесь можно разместить скриншот приложения -->
-  <!-- <img src="screenshot.png" width="300" /> -->
+  <img src="screenshot.png" width="300"/>
 </p>
 
 ## ✨ Особенности
