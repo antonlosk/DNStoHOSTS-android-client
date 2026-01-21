@@ -1,22 +1,29 @@
 package com.dnstohosts.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.*
@@ -87,8 +94,12 @@ fun MainScreen(filesDir: File) {
     var processState by remember { mutableStateOf(ProcessState.IDLE) }
     var job by remember { mutableStateOf<Job?>(null) }
     
+    // State for GitHub Dialog
+    var showInfoDialog by remember { mutableStateOf(false) }
+    
     val scope = rememberCoroutineScope()
     val scrollState = rememberLazyListState()
+    val context = LocalContext.current
 
     LaunchedEffect(logs.size) {
         if (logs.isNotEmpty()) {
@@ -215,6 +226,37 @@ fun MainScreen(filesDir: File) {
         }
     }
 
+    // --- DIALOG ---
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            containerColor = Color(0xFF1C1C1E), // Match card style
+            title = {
+                Text("Source Code", color = Color.White)
+            },
+            text = {
+                Column {
+                    Text("Project Repository:", color = Color.Gray, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "https://github.com/antonlosk/\nDNStoHOSTS-android-client",
+                        color = Color(0xFF82B1FF), // Link Blue
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/antonlosk/DNStoHOSTS-android-client"))
+                            context.startActivity(intent)
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("Close", color = Color(0xFF82B1FF))
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background // Black
@@ -225,22 +267,40 @@ fun MainScreen(filesDir: File) {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // --- Top Bar / Title ---
-            Column(modifier = Modifier.padding(bottom = 24.dp)) {
-                Text(
-                    text = "DNStoHOSTS",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+            // --- Top Bar (Title + Info Button) ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "DNStoHOSTS",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     )
-                )
-                Text(
-                    text = "by antonlosk",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Normal,
-                        color = Color.Gray
+                    Text(
+                        text = "by antonlosk",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Normal,
+                            color = Color.Gray
+                        )
                     )
-                )
+                }
+                
+                // Info Button
+                IconButton(onClick = { showInfoDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = "About",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
 
             // --- Control Buttons ---
