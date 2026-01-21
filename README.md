@@ -60,7 +60,12 @@ ipv6=false
 
 ```
 # Google
-64.233.165.138 google.com
+173.194.221.139 google.com
+173.194.221.100 google.com
+173.194.221.113 google.com
+173.194.221.101 google.com
+173.194.221.138 google.com
+173.194.221.102 google.com
 ```
 
 ## 🛠 Технический стек
