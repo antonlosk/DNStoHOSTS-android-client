@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,7 +53,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Принудительно включаем темную тему, но с поддержкой Dynamic Colors
             DNStoHOSTSTheme(darkTheme = true) {
                 val filesDir = getExternalFilesDir(null) ?: filesDir
                 MainScreen(filesDir = filesDir)
@@ -87,18 +87,16 @@ enum class EditableFile(val fileName: String, val displayName: String) {
 @Composable
 fun DNStoHOSTSTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true, // Включаем Dynamic Colors (Monet)
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        // Android 12+ (API 31+) -> Использовать цвета обоев
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        // Иначе -> Использовать нашу кастомную "WireGuard" тему
         darkTheme -> DarkColorScheme
-        else -> DarkColorScheme // По умолчанию всегда темная, если не Android 12
+        else -> DarkColorScheme
     }
 
     MaterialTheme(
@@ -108,14 +106,13 @@ fun DNStoHOSTSTheme(
     )
 }
 
-// Кастомная палитра для старых версий Android (Deep Black)
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFF82B1FF),
     onPrimary = Color.Black,
-    primaryContainer = Color(0xFF2C2C2E), // Цвет кнопок
+    primaryContainer = Color(0xFF2C2C2E),
     onPrimaryContainer = Color(0xFF82B1FF),
     background = Color(0xFF000000),
-    surface = Color(0xFF1C1C1E),          // Цвет карточек
+    surface = Color(0xFF1C1C1E),
     onSurface = Color(0xFFE5E5E5),
     surfaceVariant = Color(0xFF2C2C2E),
     error = Color(0xFFCF6679)
@@ -136,6 +133,16 @@ fun MainScreen(filesDir: File) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
+
+    // Handle Back Press explicitly for open dialogs/editors
+    // This helps the system understand the predictive back state
+    BackHandler(enabled = editingFile != null) {
+        editingFile = null
+    }
+
+    BackHandler(enabled = showInfoDialog) {
+        showInfoDialog = false
+    }
 
     LaunchedEffect(logs.size) {
         if (logs.isNotEmpty()) {
@@ -264,7 +271,7 @@ fun MainScreen(filesDir: File) {
     if (showInfoDialog) {
         AlertDialog(
             onDismissRequest = { showInfoDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface, // Dynamic color
+            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Source Code", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column {
@@ -272,7 +279,7 @@ fun MainScreen(filesDir: File) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "https://github.com/antonlosk/\nDNStoHOSTS-android-client",
-                        color = MaterialTheme.colorScheme.primary, // Dynamic Blue/Accent
+                        color = MaterialTheme.colorScheme.primary,
                         textDecoration = TextDecoration.Underline,
                         modifier = Modifier.clickable {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/antonlosk/DNStoHOSTS-android-client"))
@@ -300,7 +307,6 @@ fun MainScreen(filesDir: File) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        // На Android 12+ будет оттенок обоев, на старых - черный
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
@@ -345,7 +351,6 @@ fun MainScreen(filesDir: File) {
             }
 
             // --- Control Buttons ---
-            // Используем primaryContainer и onPrimaryContainer для поддержки Dynamic Colors
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -404,7 +409,7 @@ fun MainScreen(filesDir: File) {
                     .weight(1f)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), // Slightly transparent surface
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 tonalElevation = 2.dp
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -522,7 +527,7 @@ fun MainScreen(filesDir: File) {
                         ProcessState.RESOLVING -> {
                             LinearProgressIndicator(
                                 modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.primary, // Dynamic Color (Wallpaper)
+                                color = MaterialTheme.colorScheme.primary,
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         }
@@ -530,7 +535,6 @@ fun MainScreen(filesDir: File) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    // ИСПРАВЛЕНО: Теперь тут не зеленый, а основной цвет темы (обоев)
                                     .background(MaterialTheme.colorScheme.primary) 
                             )
                         }
@@ -578,7 +582,7 @@ fun FileEditorDialog(
                 .fillMaxSize()
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface, // Dynamic background
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 4.dp
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -615,7 +619,6 @@ fun FileEditorDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Buttons Grid
-                // Row 1: Save / Cancel
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         onClick = onDismiss,
@@ -639,9 +642,7 @@ fun FileEditorDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Row 2: Copy / Clear / (Reset)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Copy
                     Button(
                         onClick = {
                             clipboardManager.setText(AnnotatedString(textContent))
@@ -653,7 +654,6 @@ fun FileEditorDialog(
                         Text("Copy", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                     }
 
-                    // Clear
                     Button(
                         onClick = { textContent = "" },
                         modifier = Modifier.weight(1f),
@@ -662,7 +662,6 @@ fun FileEditorDialog(
                         Text("Clear", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     }
 
-                    // Reset (Only for Settings)
                     if (fileType == EditableFile.SETTINGS) {
                         Button(
                             onClick = {
@@ -763,24 +762,24 @@ fun parseDnsResponsePacket(data: ByteArray, reqType: Int): List<String> {
     val dis = DataInputStream(ByteArrayInputStream(data))
 
     try {
-        dis.readShort() // ID
-        dis.readShort() // Flags
+        dis.readShort()
+        dis.readShort()
         val qdCount = dis.readShort()
         val anCount = dis.readShort()
-        dis.readShort() // nsCount
-        dis.readShort() // arCount
+        dis.readShort()
+        dis.readShort()
 
         for (i in 0 until qdCount) {
             skipName(dis)
-            dis.readShort() // QTYPE
-            dis.readShort() // QCLASS
+            dis.readShort()
+            dis.readShort()
         }
 
         for (i in 0 until anCount) {
             skipName(dis)
             val type = dis.readShort().toInt() and 0xFFFF
-            dis.readShort() // Class
-            dis.readInt()   // TTL
+            dis.readShort()
+            dis.readInt()
             val rdLength = dis.readShort().toInt() and 0xFFFF
 
             val rData = ByteArray(rdLength)
