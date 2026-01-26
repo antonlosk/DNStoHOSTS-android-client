@@ -2,6 +2,7 @@ package com.dnstohosts.app
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -9,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -50,7 +52,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            DNStoHOSTSTheme {
+            // Принудительно включаем темную тему, но с поддержкой Dynamic Colors
+            DNStoHOSTSTheme(darkTheme = true) {
                 val filesDir = getExternalFilesDir(null) ?: filesDir
                 MainScreen(filesDir = filesDir)
             }
@@ -79,26 +82,44 @@ enum class EditableFile(val fileName: String, val displayName: String) {
     SETTINGS("settings.txt", "Settings")
 }
 
-// --- UI Theme (Android 16 / WireGuard Dark Style) ---
+// --- UI Theme (Material You / Dynamic Colors) ---
 
 @Composable
-fun DNStoHOSTSTheme(content: @Composable () -> Unit) {
-    val darkColors = darkColorScheme(
-        primary = Color(0xFF82B1FF),
-        onPrimary = Color.Black,
-        background = Color(0xFF000000),
-        surface = Color(0xFF1C1C1E),
-        onSurface = Color(0xFFE5E5E5),
-        surfaceVariant = Color(0xFF2C2C2E),
-        error = Color(0xFFCF6679)
-    )
+fun DNStoHOSTSTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true, // Включаем Dynamic Colors (Monet)
+    content: @Composable () -> Unit
+) {
+    val colorScheme = when {
+        // Android 12+ (API 31+) -> Использовать цвета обоев
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        // Иначе -> Использовать нашу кастомную "WireGuard" тему
+        darkTheme -> DarkColorScheme
+        else -> DarkColorScheme // По умолчанию всегда темная, если не Android 12
+    }
 
     MaterialTheme(
-        colorScheme = darkColors,
+        colorScheme = colorScheme,
         typography = Typography(),
         content = content
     )
 }
+
+// Кастомная палитра для старых версий Android (Deep Black)
+private val DarkColorScheme = darkColorScheme(
+    primary = Color(0xFF82B1FF),
+    onPrimary = Color.Black,
+    primaryContainer = Color(0xFF2C2C2E), // Цвет кнопок
+    onPrimaryContainer = Color(0xFF82B1FF),
+    background = Color(0xFF000000),
+    surface = Color(0xFF1C1C1E),          // Цвет карточек
+    onSurface = Color(0xFFE5E5E5),
+    surfaceVariant = Color(0xFF2C2C2E),
+    error = Color(0xFFCF6679)
+)
 
 // --- Main Screen ---
 
@@ -164,7 +185,6 @@ fun MainScreen(filesDir: File) {
                 appendLog("Reading input.txt...")
                 val inputFile = File(filesDir, "input.txt")
                 if (!inputFile.exists()) {
-                    // NEW: Create default content if missing
                     val defaultContent = "# Google\ngoogle.com"
                     inputFile.writeText(defaultContent)
                     appendLog("File input.txt created with default content.")
@@ -186,7 +206,6 @@ fun MainScreen(filesDir: File) {
                     if (!isActive) break
 
                     val trimmed = line.trim()
-                    
                     if (trimmed.isEmpty()) {
                         outputLines.add("")
                         continue
@@ -245,15 +264,15 @@ fun MainScreen(filesDir: File) {
     if (showInfoDialog) {
         AlertDialog(
             onDismissRequest = { showInfoDialog = false },
-            containerColor = Color(0xFF1C1C1E),
-            title = { Text("Source Code", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface, // Dynamic color
+            title = { Text("Source Code", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column {
-                    Text("Project Repository:", color = Color.Gray, fontSize = 14.sp)
+                    Text("Project Repository:", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "https://github.com/antonlosk/\nDNStoHOSTS-android-client",
-                        color = Color(0xFF82B1FF),
+                        color = MaterialTheme.colorScheme.primary, // Dynamic Blue/Accent
                         textDecoration = TextDecoration.Underline,
                         modifier = Modifier.clickable {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/antonlosk/DNStoHOSTS-android-client"))
@@ -264,7 +283,7 @@ fun MainScreen(filesDir: File) {
             },
             confirmButton = {
                 TextButton(onClick = { showInfoDialog = false }) {
-                    Text("Close", color = Color(0xFF82B1FF))
+                    Text("Close", color = MaterialTheme.colorScheme.primary)
                 }
             }
         )
@@ -281,6 +300,7 @@ fun MainScreen(filesDir: File) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        // На Android 12+ будет оттенок обоев, на старых - черный
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
@@ -302,14 +322,14 @@ fun MainScreen(filesDir: File) {
                         text = "DNStoHOSTS",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     )
                     Text(
                         text = "by antonlosk",
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Normal,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -318,13 +338,14 @@ fun MainScreen(filesDir: File) {
                     Icon(
                         imageVector = Icons.Outlined.Info,
                         contentDescription = "About",
-                        tint = Color.Gray,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
             // --- Control Buttons ---
+            // Используем primaryContainer и onPrimaryContainer для поддержки Dynamic Colors
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -335,10 +356,10 @@ fun MainScreen(filesDir: File) {
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2C2C2E),
-                        contentColor = Color(0xFF82B1FF),
-                        disabledContainerColor = Color(0xFF1C1C1E),
-                        disabledContentColor = Color.Gray
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
                     Text("Start", fontSize = 16.sp, fontWeight = FontWeight.Medium)
@@ -350,10 +371,10 @@ fun MainScreen(filesDir: File) {
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2C2C2E),
-                        contentColor = Color(0xFFFF453A),
-                        disabledContainerColor = Color(0xFF1C1C1E),
-                        disabledContentColor = Color.Gray
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.error,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
                     Text("Stop", fontSize = 16.sp, fontWeight = FontWeight.Medium)
@@ -365,10 +386,10 @@ fun MainScreen(filesDir: File) {
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2C2C2E),
-                        contentColor = Color.White,
-                        disabledContainerColor = Color(0xFF1C1C1E),
-                        disabledContentColor = Color.Gray
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
                     Text("Clear", fontSize = 16.sp, fontWeight = FontWeight.Medium)
@@ -383,19 +404,19 @@ fun MainScreen(filesDir: File) {
                     .weight(1f)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1C1C1E),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), // Slightly transparent surface
                 tonalElevation = 2.dp
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF2C2C2E))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(vertical = 8.dp, horizontal = 16.dp)
                     ) {
                         Text(
                             text = "Execution Log",
-                            color = Color.LightGray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -410,7 +431,7 @@ fun MainScreen(filesDir: File) {
                         items(logs) { logLine ->
                             Text(
                                 text = logLine,
-                                color = Color(0xFFD0D0D0),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
                                 lineHeight = 15.sp,
@@ -423,14 +444,14 @@ fun MainScreen(filesDir: File) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- File Edit Buttons (NEW) ---
+            // --- File Edit Buttons ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val buttonColors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2C2C2E),
-                    contentColor = Color(0xFFCCCCCC)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 val buttonModifier = Modifier.weight(1f).height(40.dp)
                 val buttonShape = RoundedCornerShape(8.dp)
@@ -477,14 +498,14 @@ fun MainScreen(filesDir: File) {
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Status", color = Color.Gray, fontSize = 12.sp)
+                    Text("Status", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     Text(
                         text = when(processState) {
                             ProcessState.IDLE -> "Idle"
                             ProcessState.RESOLVING -> "Resolving..."
                             ProcessState.FINISHED -> "Done"
                         },
-                        color = Color.Gray, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 }
@@ -493,7 +514,7 @@ fun MainScreen(filesDir: File) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
-                        .background(Color(0xFF2C2C2E), RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(3.dp))
                         .clip(RoundedCornerShape(3.dp))
                 ) {
                     when (processState) {
@@ -501,15 +522,15 @@ fun MainScreen(filesDir: File) {
                         ProcessState.RESOLVING -> {
                             LinearProgressIndicator(
                                 modifier = Modifier.fillMaxSize(),
-                                color = Color(0xFF0A84FF),
-                                trackColor = Color(0xFF2C2C2E)
+                                color = MaterialTheme.colorScheme.primary, // Dynamic Blue
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         }
                         ProcessState.FINISHED -> {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color(0xFF32D74B))
+                                    .background(Color(0xFF32D74B)) // Keep green for success
                             )
                         }
                     }
@@ -532,7 +553,6 @@ fun FileEditorDialog(
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
-    // Load file content on open
     LaunchedEffect(fileType) {
         if (!file.exists()) {
             if (fileType == EditableFile.INPUT) {
@@ -550,14 +570,14 @@ fun FileEditorDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false) // Full width
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF1C1C1E),
+            color = MaterialTheme.colorScheme.surface, // Dynamic background
             tonalElevation = 4.dp
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -565,7 +585,7 @@ fun FileEditorDialog(
                 Text(
                     text = "Editing: ${fileType.displayName}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
@@ -574,19 +594,19 @@ fun FileEditorDialog(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .background(Color(0xFF000000), RoundedCornerShape(8.dp))
-                        .border(1.dp, Color(0xFF333333), RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.background, RoundedCornerShape(8.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
                     BasicTextField(
                         value = textContent,
                         onValueChange = { textContent = it },
                         textStyle = TextStyle(
-                            color = Color(0xFFE5E5E5),
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp,
                             fontFamily = FontFamily.Monospace
                         ),
-                        cursorBrush = SolidColor(Color(0xFF82B1FF)),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -599,9 +619,9 @@ fun FileEditorDialog(
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Text("Cancel", color = Color.White)
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Button(
                         onClick = {
@@ -610,9 +630,9 @@ fun FileEditorDialog(
                             onDismiss()
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF))
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Text("Save", color = Color.White)
+                        Text("Save", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
 
@@ -627,18 +647,18 @@ fun FileEditorDialog(
                             Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Text("Copy", color = Color(0xFF82B1FF), fontSize = 12.sp)
+                        Text("Copy", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                     }
 
                     // Clear
                     Button(
                         onClick = { textContent = "" },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Text("Clear", color = Color(0xFFFF453A), fontSize = 12.sp)
+                        Text("Clear", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     }
 
                     // Reset (Only for Settings)
@@ -648,7 +668,7 @@ fun FileEditorDialog(
                                 textContent = "adress=dns.google\nport=443\nipv4=true\nipv6=false"
                             },
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E))
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Text("Reset", color = Color(0xFFFFD60A), fontSize = 12.sp)
                         }
