@@ -522,7 +522,7 @@ fun MainScreen(filesDir: File) {
                         ProcessState.RESOLVING -> {
                             LinearProgressIndicator(
                                 modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.primary, // Dynamic Blue
+                                color = MaterialTheme.colorScheme.primary, // Dynamic Color (Wallpaper)
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         }
@@ -530,7 +530,8 @@ fun MainScreen(filesDir: File) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color(0xFF32D74B)) // Keep green for success
+                                    // ИСПРАВЛЕНО: Теперь тут не зеленый, а основной цвет темы (обоев)
+                                    .background(MaterialTheme.colorScheme.primary) 
                             )
                         }
                     }
