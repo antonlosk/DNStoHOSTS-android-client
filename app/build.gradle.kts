@@ -15,7 +15,6 @@ android {
         minSdk = 26
         targetSdk = 34
         
-        // Получаем версию от GitHub Actions
         val cmdVersionName = project.findProperty("versionName") as? String
         val cmdVersionCode = project.findProperty("versionCode") as? String
 
@@ -46,11 +45,9 @@ android {
 
     buildTypes {
         release {
-            // --- ОПТИМИЗАЦИЯ ВКЛЮЧЕНА ЗДЕСЬ ---
-            isMinifyEnabled = true       // Включает R8 (сжатие кода и обфускация)
-            isShrinkResources = true     // Удаляет неиспользуемые ресурсы
+            isMinifyEnabled = true
+            isShrinkResources = true
             
-            // Используем rules для агрессивной оптимизации
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -82,7 +79,10 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
-    implementation("androidx.activity:activity-compose:1.7.0")
+    
+    // ОБНОВЛЕНО: Версия 1.8.2+ нужна для Predictive Back Gesture
+    implementation("androidx.activity:activity-compose:1.8.2")
+    
     implementation(platform("androidx.compose:compose-bom:2023.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
