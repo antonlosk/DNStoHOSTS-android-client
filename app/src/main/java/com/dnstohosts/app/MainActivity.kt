@@ -70,7 +70,7 @@ enum class ProcessState {
 }
 
 data class AppSettings(
-    val address: String = "dns.google",
+    val server: String = "dns.google", // Changed from address to server
     val port: Int = 443,
     val ipv4: Boolean = true,
     val ipv6: Boolean = false
@@ -134,8 +134,7 @@ fun MainScreen(filesDir: File) {
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
 
-    // Handle Back Press explicitly for open dialogs/editors
-    // This helps the system understand the predictive back state
+    // Predictive Back Handlers
     BackHandler(enabled = editingFile != null) {
         editingFile = null
     }
@@ -182,10 +181,11 @@ fun MainScreen(filesDir: File) {
                 appendLog("Reading settings.txt...")
                 val settingsFile = File(filesDir, "settings.txt")
                 if (!settingsFile.exists()) {
-                    settingsFile.writeText("adress=dns.google\nport=443\nipv4=true\nipv6=false")
+                    // Default settings with 'server'
+                    settingsFile.writeText("server=dns.google\nport=443\nipv4=true\nipv6=false")
                 }
                 val settings = parseSettings(settingsFile)
-                appendLog("DNS Server: ${settings.address}")
+                appendLog("DNS Server: ${settings.server}") // Log 'server'
                 appendLog("IPv4: ${settings.ipv4}, IPv6: ${settings.ipv6}")
 
                 // 2. Read Input
@@ -563,7 +563,8 @@ fun FileEditorDialog(
             if (fileType == EditableFile.INPUT) {
                 textContent = "# Google\ngoogle.com"
             } else if (fileType == EditableFile.SETTINGS) {
-                textContent = "adress=dns.google\nport=443\nipv4=true\nipv6=false"
+                // Default with 'server'
+                textContent = "server=dns.google\nport=443\nipv4=true\nipv6=false"
             } else {
                 file.createNewFile()
                 textContent = ""
@@ -665,7 +666,8 @@ fun FileEditorDialog(
                     if (fileType == EditableFile.SETTINGS) {
                         Button(
                             onClick = {
-                                textContent = "adress=dns.google\nport=443\nipv4=true\nipv6=false"
+                                // Reset with 'server'
+                                textContent = "server=dns.google\nport=443\nipv4=true\nipv6=false"
                             },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -682,7 +684,7 @@ fun FileEditorDialog(
 // --- Logic Implementation ---
 
 fun parseSettings(file: File): AppSettings {
-    var address = "dns.google"
+    var server = "dns.google" // Changed variable name
     var port = 443
     var ipv4 = true
     var ipv6 = false
@@ -696,7 +698,7 @@ fun parseSettings(file: File): AppSettings {
                 val value = parts[1].trim()
                 
                 when (key) {
-                    "adress", "address" -> address = value
+                    "server", "adress", "address" -> server = value // Accept 'server' (and legacy address)
                     "port" -> port = value.toIntOrNull() ?: 443
                     "ipv4" -> ipv4 = value.toBoolean()
                     "ipv6" -> ipv6 = value.toBoolean()
@@ -704,7 +706,7 @@ fun parseSettings(file: File): AppSettings {
             }
         }
     }
-    return AppSettings(address, port, ipv4, ipv6)
+    return AppSettings(server, port, ipv4, ipv6)
 }
 
 // --- Binary DNS Implementation ---
@@ -712,7 +714,8 @@ fun parseSettings(file: File): AppSettings {
 fun executeBinaryDnsQuery(client: OkHttpClient, settings: AppSettings, domain: String, recordType: String): List<String> {
     val qType = if (recordType == "AAAA") 28 else 1
     val queryBytes = createDnsQueryPacket(domain, qType)
-    val url = "https://${settings.address}:${settings.port}/dns-query"
+    // Use settings.server
+    val url = "https://${settings.server}:${settings.port}/dns-query"
     
     val requestBody = queryBytes.toRequestBody("application/dns-message".toMediaType())
     
