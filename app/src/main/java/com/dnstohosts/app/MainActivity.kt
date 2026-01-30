@@ -70,7 +70,7 @@ enum class ProcessState {
 }
 
 data class AppSettings(
-    val server: String = "dns.google", // Changed from address to server
+    val server: String = "dns.google",
     val port: Int = 443,
     val ipv4: Boolean = true,
     val ipv6: Boolean = false
@@ -181,11 +181,10 @@ fun MainScreen(filesDir: File) {
                 appendLog("Reading settings.txt...")
                 val settingsFile = File(filesDir, "settings.txt")
                 if (!settingsFile.exists()) {
-                    // Default settings with 'server'
                     settingsFile.writeText("server=dns.google\nport=443\nipv4=true\nipv6=false")
                 }
                 val settings = parseSettings(settingsFile)
-                appendLog("DNS Server: ${settings.server}") // Log 'server'
+                appendLog("DNS Server: ${settings.server}")
                 appendLog("IPv4: ${settings.ipv4}, IPv6: ${settings.ipv6}")
 
                 // 2. Read Input
@@ -684,7 +683,7 @@ fun FileEditorDialog(
 // --- Logic Implementation ---
 
 fun parseSettings(file: File): AppSettings {
-    var server = "dns.google" // Changed variable name
+    var server = "dns.google"
     var port = 443
     var ipv4 = true
     var ipv6 = false
@@ -698,7 +697,7 @@ fun parseSettings(file: File): AppSettings {
                 val value = parts[1].trim()
                 
                 when (key) {
-                    "server", "adress", "address" -> server = value // Accept 'server' (and legacy address)
+                    "server" -> server = value // ONLY accept 'server'
                     "port" -> port = value.toIntOrNull() ?: 443
                     "ipv4" -> ipv4 = value.toBoolean()
                     "ipv6" -> ipv6 = value.toBoolean()
@@ -714,7 +713,6 @@ fun parseSettings(file: File): AppSettings {
 fun executeBinaryDnsQuery(client: OkHttpClient, settings: AppSettings, domain: String, recordType: String): List<String> {
     val qType = if (recordType == "AAAA") 28 else 1
     val queryBytes = createDnsQueryPacket(domain, qType)
-    // Use settings.server
     val url = "https://${settings.server}:${settings.port}/dns-query"
     
     val requestBody = queryBytes.toRequestBody("application/dns-message".toMediaType())
