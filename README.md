@@ -82,7 +82,7 @@ google.com
 Настройки подключения к DoH-серверу.
 
 ```ini
-adress=dns.google
+server=dns.google
 port=443
 ipv4=true
 ipv6=false
