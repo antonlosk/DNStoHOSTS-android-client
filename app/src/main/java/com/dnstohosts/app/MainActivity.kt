@@ -65,8 +65,8 @@ class MainActivity : ComponentActivity() {
 
 enum class ProcessState {
     IDLE,       // Grey bar
-    RESOLVING,  // Blue indeterminate
-    FINISHED    // Green full
+    RESOLVING,  // Determinate Blue bar
+    FINISHED    // Green/Primary full bar
 }
 
 data class AppSettings(
@@ -124,6 +124,11 @@ private val DarkColorScheme = darkColorScheme(
 fun MainScreen(filesDir: File) {
     var logs by remember { mutableStateOf(listOf<String>()) }
     var processState by remember { mutableStateOf(ProcessState.IDLE) }
+    
+    // NEW: Progress counters
+    var totalDomains by remember { mutableIntStateOf(0) }
+    var processedCount by remember { mutableIntStateOf(0) }
+    
     var job by remember { mutableStateOf<Job?>(null) }
     
     // Dialog States
@@ -149,7 +154,7 @@ fun MainScreen(filesDir: File) {
         }
     }
 
-    fun appendLog(text: String) {
+    suspend fun appendLog(text: String) = withContext(Dispatchers.Main) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         logs = logs + "[$time] $text"
     }
@@ -157,14 +162,18 @@ fun MainScreen(filesDir: File) {
     fun clearLog() {
         logs = emptyList()
         processState = ProcessState.IDLE
+        totalDomains = 0
+        processedCount = 0
     }
 
     fun stopProcess() {
         if (processState == ProcessState.RESOLVING) {
-            appendLog("Stop requested, waiting for current operation to complete...")
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            logs = logs + "[$time] Stop requested, waiting for current operation to complete..."
             job?.cancel()
             processState = ProcessState.IDLE
-            appendLog("Operation cancelled by user")
+            val time2 = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            logs = logs + "[$time2] Operation cancelled by user"
         }
     }
 
@@ -172,6 +181,9 @@ fun MainScreen(filesDir: File) {
         if (processState == ProcessState.RESOLVING) return
         
         processState = ProcessState.RESOLVING
+        // Reset counters
+        totalDomains = 0
+        processedCount = 0
         
         job = scope.launch(Dispatchers.IO) {
             try {
@@ -197,8 +209,16 @@ fun MainScreen(filesDir: File) {
                 }
 
                 val inputLines = inputFile.readLines()
+                // Filter domains to process to get total count
                 val domainsToProcess = inputLines.filter { it.isNotBlank() && !it.trim().startsWith("#") }
-                appendLog("Found ${domainsToProcess.size} domains to resolve")
+                
+                // Update Total Count on Main Thread
+                withContext(Dispatchers.Main) {
+                    totalDomains = domainsToProcess.size
+                    processedCount = 0
+                }
+
+                appendLog("Found $totalDomains domains to resolve")
                 appendLog("----------------------------------------")
 
                 val outputLines = mutableListOf<String>()
@@ -246,6 +266,11 @@ fun MainScreen(filesDir: File) {
                             outputLines.add("$ip $domain")
                         }
                     }
+
+                    // Update Progress on Main Thread
+                    withContext(Dispatchers.Main) {
+                        processedCount++
+                    }
                 }
 
                 if (isActive) {
@@ -254,13 +279,19 @@ fun MainScreen(filesDir: File) {
                     val outputFile = File(filesDir, "output.txt")
                     outputFile.writeText(outputLines.joinToString("\n"))
                     appendLog("Successfully wrote ${outputLines.size} lines to output.txt")
-                    processState = ProcessState.FINISHED
+                    
+                    withContext(Dispatchers.Main) {
+                        processState = ProcessState.FINISHED
+                    }
                 }
 
             } catch (e: CancellationException) {
                 // Handled
             } catch (e: Exception) {
                 appendLog("Error: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    processState = ProcessState.IDLE
+                }
             }
         }
     }
@@ -503,12 +534,14 @@ fun MainScreen(filesDir: File) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Status", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    // NEW: Show counts in status text
+                    val statusText = when(processState) {
+                        ProcessState.IDLE -> "Idle"
+                        ProcessState.RESOLVING -> "Resolving... ($processedCount/$totalDomains)"
+                        ProcessState.FINISHED -> "Done ($totalDomains processed)"
+                    }
                     Text(
-                        text = when(processState) {
-                            ProcessState.IDLE -> "Idle"
-                            ProcessState.RESOLVING -> "Resolving..."
-                            ProcessState.FINISHED -> "Done"
-                        },
+                        text = statusText,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
@@ -524,7 +557,10 @@ fun MainScreen(filesDir: File) {
                     when (processState) {
                         ProcessState.IDLE -> {}
                         ProcessState.RESOLVING -> {
+                            // NEW: Determinate Progress Bar
+                            val progress = if (totalDomains > 0) processedCount.toFloat() / totalDomains else 0f
                             LinearProgressIndicator(
+                                progress = progress,
                                 modifier = Modifier.fillMaxSize(),
                                 color = MaterialTheme.colorScheme.primary,
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -697,7 +733,7 @@ fun parseSettings(file: File): AppSettings {
                 val value = parts[1].trim()
                 
                 when (key) {
-                    "server" -> server = value // ONLY accept 'server'
+                    "server" -> server = value
                     "port" -> port = value.toIntOrNull() ?: 443
                     "ipv4" -> ipv4 = value.toBoolean()
                     "ipv6" -> ipv6 = value.toBoolean()
