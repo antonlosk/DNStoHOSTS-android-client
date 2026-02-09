@@ -4,6 +4,8 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    // Подключаем Compose Compiler Plugin
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -56,6 +58,8 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+    
+    // AGP 9.0 требует Java 17
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -63,12 +67,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15" // Проверьте совместимость с Kotlin 2.3.10, возможно потребуется 2.0+
-    }
+    // composeOptions БОЛЬШЕ НЕ НУЖЕН в Kotlin 2.0+
+    
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -80,6 +84,8 @@ dependencies {
     // Core & Lifecycle
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    
+    // Activity Compose обновлен
     implementation("androidx.activity:activity-compose:1.12.3")
     
     // Compose BOM 2026.01.01
