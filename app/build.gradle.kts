@@ -3,14 +3,13 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    // Подключаем Compose Compiler Plugin
+    // УДАЛЕНО: id("org.jetbrains.kotlin.android") — теперь встроено в AGP 9.0
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.dnstohosts.app"
-    compileSdk = 36 // Android 16 (Baklava)
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.dnstohosts.app"
@@ -59,7 +58,6 @@ android {
         }
     }
     
-    // AGP 9.0 требует Java 17
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -71,7 +69,6 @@ android {
     buildFeatures {
         compose = true
     }
-    // composeOptions БОЛЬШЕ НЕ НУЖЕН в Kotlin 2.0+
     
     packaging {
         resources {
@@ -85,10 +82,10 @@ dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     
-    // Activity Compose обновлен
+    // Activity
     implementation("androidx.activity:activity-compose:1.12.3")
     
-    // Compose BOM 2026.01.01
+    // Compose BOM
     implementation(platform("androidx.compose:compose-bom:2026.01.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
@@ -98,7 +95,7 @@ dependencies {
     // UI Components
     implementation("com.google.android.material:material:1.13.0")
     
-    // Networking (OkHttp 5.3.2)
+    // Networking
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:5.3.2")
 }
