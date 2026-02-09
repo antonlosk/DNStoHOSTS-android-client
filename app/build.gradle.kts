@@ -79,15 +79,15 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
-    
-    // ОБНОВЛЕНО: Версия 1.8.2+ нужна для Predictive Back Gesture
     implementation("androidx.activity:activity-compose:1.8.2")
-    
     implementation(platform("androidx.compose:compose-bom:2023.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.11.0")
+    
+    // OkHttp + DoH
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.11.0")
 }
