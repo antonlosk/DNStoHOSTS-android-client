@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.dnstohosts.app"
-    compileSdk = 34
+    compileSdk = 36 // Android 16 (Baklava)
 
     defaultConfig {
         applicationId = "com.dnstohosts.app"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         
         val cmdVersionName = project.findProperty("versionName") as? String
         val cmdVersionCode = project.findProperty("versionCode") as? String
@@ -57,17 +57,17 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
+        kotlinCompilerExtensionVersion = "1.5.15" // Проверьте совместимость с Kotlin 2.3.10, возможно потребуется 2.0+
     }
     packaging {
         resources {
@@ -77,17 +77,22 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.10.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    implementation(platform("androidx.compose:compose-bom:2023.08.00"))
+    // Core & Lifecycle
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    implementation("androidx.activity:activity-compose:1.12.3")
+    
+    // Compose BOM 2026.01.01
+    implementation(platform("androidx.compose:compose-bom:2026.01.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("com.google.android.material:material:1.11.0")
     
-    // OkHttp + DoH
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
-    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.11.0")
+    // UI Components
+    implementation("com.google.android.material:material:1.13.0")
+    
+    // Networking (OkHttp 5.3.2)
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:5.3.2")
 }
