@@ -39,11 +39,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.*
-import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.dnsoverhttps.DnsOverHttps
 import java.io.*
+import java.net.Inet4Address
+import java.net.Inet6Address
 import java.net.InetAddress
 import java.text.SimpleDateFormat
 import java.util.*
@@ -66,7 +67,7 @@ class MainActivity : ComponentActivity() {
 enum class ProcessState {
     IDLE,       // Grey bar
     RESOLVING,  // Determinate Blue bar
-    FINISHED    // Green/Primary full bar
+    FINISHED    // Green full bar
 }
 
 data class AppSettings(
@@ -125,7 +126,7 @@ fun MainScreen(filesDir: File) {
     var logs by remember { mutableStateOf(listOf<String>()) }
     var processState by remember { mutableStateOf(ProcessState.IDLE) }
     
-    // NEW: Progress counters
+    // Progress counters
     var totalDomains by remember { mutableIntStateOf(0) }
     var processedCount by remember { mutableIntStateOf(0) }
     
@@ -181,7 +182,6 @@ fun MainScreen(filesDir: File) {
         if (processState == ProcessState.RESOLVING) return
         
         processState = ProcessState.RESOLVING
-        // Reset counters
         totalDomains = 0
         processedCount = 0
         
@@ -209,10 +209,8 @@ fun MainScreen(filesDir: File) {
                 }
 
                 val inputLines = inputFile.readLines()
-                // Filter domains to process to get total count
                 val domainsToProcess = inputLines.filter { it.isNotBlank() && !it.trim().startsWith("#") }
                 
-                // Update Total Count on Main Thread
                 withContext(Dispatchers.Main) {
                     totalDomains = domainsToProcess.size
                     processedCount = 0
@@ -223,9 +221,18 @@ fun MainScreen(filesDir: File) {
 
                 val outputLines = mutableListOf<String>()
                 
-                val client = OkHttpClient.Builder()
+                // --- SETUP OKHTTP DoH ---
+                val bootstrapClient = OkHttpClient.Builder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.SECONDS)
+                    .build()
+
+                val dohUrl = "https://${settings.server}:${settings.port}/dns-query".toHttpUrl()
+                
+                val dns = DnsOverHttps.Builder()
+                    .client(bootstrapClient)
+                    .url(dohUrl)
+                    .includeIPv6(settings.ipv6) // Optimize: don't query AAAA if not needed
                     .build()
 
                 for (line in inputLines) {
@@ -246,28 +253,33 @@ fun MainScreen(filesDir: File) {
                     val domain = trimmed
                     appendLog("Resolving: $domain")
                     
-                    val resolvedIps = mutableListOf<String>()
+                    try {
+                        // Use library to lookup
+                        val addresses = dns.lookup(domain)
+                        var foundCount = 0
+                        
+                        addresses.forEach { addr ->
+                            val ip = addr.hostAddress ?: ""
+                            val isV4 = addr is Inet4Address
+                            val isV6 = addr is Inet6Address
 
-                    if (settings.ipv4) {
-                        val ips = executeBinaryDnsQuery(client, settings, domain, "A")
-                        resolvedIps.addAll(ips)
-                    }
-                    if (settings.ipv6) {
-                        val ips = executeBinaryDnsQuery(client, settings, domain, "AAAA")
-                        resolvedIps.addAll(ips)
-                    }
-
-                    if (resolvedIps.isEmpty()) {
-                        appendLog("  No records found for $domain")
-                        outputLines.add("# No records found: $domain")
-                    } else {
-                        resolvedIps.forEach { ip ->
-                            appendLog("  $ip $domain")
-                            outputLines.add("$ip $domain")
+                            if ((settings.ipv4 && isV4) || (settings.ipv6 && isV6)) {
+                                appendLog("  $ip $domain")
+                                outputLines.add("$ip $domain")
+                                foundCount++
+                            }
                         }
+
+                        if (foundCount == 0) {
+                            appendLog("  No matching records found for $domain")
+                            outputLines.add("# No records found: $domain")
+                        }
+
+                    } catch (e: Exception) {
+                        appendLog("  Lookup failed: ${e.message}")
+                        outputLines.add("# Lookup failed: $domain")
                     }
 
-                    // Update Progress on Main Thread
                     withContext(Dispatchers.Main) {
                         processedCount++
                     }
@@ -296,7 +308,8 @@ fun MainScreen(filesDir: File) {
         }
     }
 
-    // --- DIALOGS ---
+    // --- UI COMPONENTS ---
+    // (Everything below remains exactly the same as before)
     
     if (showInfoDialog) {
         AlertDialog(
@@ -326,7 +339,6 @@ fun MainScreen(filesDir: File) {
         )
     }
 
-    // --- FILE EDITOR ---
     editingFile?.let { fileType ->
         FileEditorDialog(
             fileType = fileType,
@@ -345,7 +357,6 @@ fun MainScreen(filesDir: File) {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // --- Top Bar ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -380,7 +391,6 @@ fun MainScreen(filesDir: File) {
                 }
             }
 
-            // --- Control Buttons ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -433,7 +443,6 @@ fun MainScreen(filesDir: File) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Log Area ---
             Surface(
                 modifier = Modifier
                     .weight(1f)
@@ -479,7 +488,6 @@ fun MainScreen(filesDir: File) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- File Edit Buttons ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -527,14 +535,12 @@ fun MainScreen(filesDir: File) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- Progress Bar ---
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Status", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    // NEW: Show counts in status text
                     val statusText = when(processState) {
                         ProcessState.IDLE -> "Idle"
                         ProcessState.RESOLVING -> "Resolving... ($processedCount/$totalDomains)"
@@ -557,7 +563,6 @@ fun MainScreen(filesDir: File) {
                     when (processState) {
                         ProcessState.IDLE -> {}
                         ProcessState.RESOLVING -> {
-                            // NEW: Determinate Progress Bar
                             val progress = if (totalDomains > 0) processedCount.toFloat() / totalDomains else 0f
                             LinearProgressIndicator(
                                 progress = progress,
@@ -598,7 +603,6 @@ fun FileEditorDialog(
             if (fileType == EditableFile.INPUT) {
                 textContent = "# Google\ngoogle.com"
             } else if (fileType == EditableFile.SETTINGS) {
-                // Default with 'server'
                 textContent = "server=dns.google\nport=443\nipv4=true\nipv6=false"
             } else {
                 file.createNewFile()
@@ -622,7 +626,6 @@ fun FileEditorDialog(
             tonalElevation = 4.dp
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                // Header
                 Text(
                     text = "Editing: ${fileType.displayName}",
                     style = MaterialTheme.typography.titleMedium,
@@ -630,7 +633,6 @@ fun FileEditorDialog(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                // Editor Area
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -654,7 +656,6 @@ fun FileEditorDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Buttons Grid
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         onClick = onDismiss,
@@ -701,7 +702,6 @@ fun FileEditorDialog(
                     if (fileType == EditableFile.SETTINGS) {
                         Button(
                             onClick = {
-                                // Reset with 'server'
                                 textContent = "server=dns.google\nport=443\nipv4=true\nipv6=false"
                             },
                             modifier = Modifier.weight(1f),
@@ -742,107 +742,4 @@ fun parseSettings(file: File): AppSettings {
         }
     }
     return AppSettings(server, port, ipv4, ipv6)
-}
-
-// --- Binary DNS Implementation ---
-
-fun executeBinaryDnsQuery(client: OkHttpClient, settings: AppSettings, domain: String, recordType: String): List<String> {
-    val qType = if (recordType == "AAAA") 28 else 1
-    val queryBytes = createDnsQueryPacket(domain, qType)
-    val url = "https://${settings.server}:${settings.port}/dns-query"
-    
-    val requestBody = queryBytes.toRequestBody("application/dns-message".toMediaType())
-    
-    val request = Request.Builder()
-        .url(url)
-        .addHeader("Accept", "application/dns-message")
-        .post(requestBody)
-        .build()
-
-    return try {
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return emptyList()
-            val bodyBytes = response.body?.bytes() ?: return emptyList()
-            parseDnsResponsePacket(bodyBytes, qType)
-        }
-    } catch (e: Exception) {
-        emptyList()
-    }
-}
-
-fun createDnsQueryPacket(domain: String, type: Int): ByteArray {
-    val baos = ByteArrayOutputStream()
-    val dos = DataOutputStream(baos)
-
-    dos.writeShort(0x1234)
-    dos.writeShort(0x0100)
-    dos.writeShort(1)
-    dos.writeShort(0)
-    dos.writeShort(0)
-    dos.writeShort(0)
-
-    for (label in domain.split(".")) {
-        val bytes = label.toByteArray(Charsets.UTF_8)
-        dos.writeByte(bytes.size)
-        dos.write(bytes)
-    }
-    dos.writeByte(0)
-
-    dos.writeShort(type)
-    dos.writeShort(1)
-
-    return baos.toByteArray()
-}
-
-fun parseDnsResponsePacket(data: ByteArray, reqType: Int): List<String> {
-    val results = mutableListOf<String>()
-    val dis = DataInputStream(ByteArrayInputStream(data))
-
-    try {
-        dis.readShort()
-        dis.readShort()
-        val qdCount = dis.readShort()
-        val anCount = dis.readShort()
-        dis.readShort()
-        dis.readShort()
-
-        for (i in 0 until qdCount) {
-            skipName(dis)
-            dis.readShort()
-            dis.readShort()
-        }
-
-        for (i in 0 until anCount) {
-            skipName(dis)
-            val type = dis.readShort().toInt() and 0xFFFF
-            dis.readShort()
-            dis.readInt()
-            val rdLength = dis.readShort().toInt() and 0xFFFF
-
-            val rData = ByteArray(rdLength)
-            dis.readFully(rData)
-
-            if (type == reqType) {
-                try {
-                    val inetAddress = InetAddress.getByAddress(rData)
-                    results.add(inetAddress.hostAddress ?: "")
-                } catch (e: Exception) {}
-            }
-        }
-    } catch (e: EOFException) {} catch (e: Exception) {}
-
-    return results
-}
-
-fun skipName(dis: DataInputStream) {
-    while (true) {
-        dis.mark(1)
-        val len = dis.readByte().toInt() and 0xFF
-        if (len == 0) return
-        if ((len and 0xC0) == 0xC0) {
-            dis.readByte() 
-            return
-        }
-        dis.skipBytes(len)
-    }
 }
