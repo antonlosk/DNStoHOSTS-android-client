@@ -3,7 +3,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    // УДАЛЕНО: id("org.jetbrains.kotlin.android") — теперь встроено в AGP 9.0
+    // org.jetbrains.kotlin.android не нужен в AGP 9.0
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -58,13 +58,13 @@ android {
         }
     }
     
+    // Настройки Java 17 (AGP автоматически применит их и к Kotlin)
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    
+    // БЛОК kotlinOptions УДАЛЕН
     
     buildFeatures {
         compose = true
