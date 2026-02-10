@@ -3,7 +3,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    // org.jetbrains.kotlin.android не нужен в AGP 9.0
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -58,13 +57,11 @@ android {
         }
     }
     
-    // Настройки Java 17 (AGP автоматически применит их и к Kotlin)
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
-    // БЛОК kotlinOptions УДАЛЕН
+    // kotlinOptions удален, так как он не нужен в AGP 9.0+
     
     buildFeatures {
         compose = true
@@ -91,6 +88,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    
+    // !!! ДОБАВЛЕНО: Библиотека иконок (содержит Icons.Outlined.Info и др.)
+    implementation("androidx.compose.material:material-icons-extended")
     
     // UI Components
     implementation("com.google.android.material:material:1.13.0")
