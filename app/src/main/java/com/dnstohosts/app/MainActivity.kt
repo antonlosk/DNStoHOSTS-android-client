@@ -73,8 +73,8 @@ enum class ProcessState {
 }
 
 enum class DnsProtocol {
-    DOH, // DNS over HTTPS
-    DOT  // DNS over TLS
+    DOH, // DNS over HTTPS (Port 443)
+    DOT  // DNS over TLS (Port 853)
 }
 
 data class AppSettings(
@@ -224,7 +224,7 @@ fun MainScreen(filesDir: File) {
                 
                 // --- PREPARE CLIENTS ---
                 
-                // For DoH:
+                // For DoH (reused client)
                 val dohClient = if (settings.protocol == DnsProtocol.DOH) {
                     val bootstrap = OkHttpClient.Builder()
                         .connectTimeout(10, TimeUnit.SECONDS)
@@ -237,9 +237,6 @@ fun MainScreen(filesDir: File) {
                         .includeIPv6(settings.ipv6)
                         .build()
                 } else null
-
-                // For DoT:
-                // Socket factory is obtained when needed
 
                 for (line in inputLines) {
                     if (!isActive) break
@@ -275,6 +272,7 @@ fun MainScreen(filesDir: File) {
                             }
                         } else {
                             // --- DoT Strategy ---
+                            // Note: DoT usually runs on port 853
                             if (settings.ipv4) {
                                 val ips = executeDotQuery(settings, domain, "A")
                                 resolvedIps.addAll(ips)
@@ -717,14 +715,29 @@ fun FileEditorDialog(
                     }
 
                     if (fileType == EditableFile.SETTINGS) {
+                        // NEW: Split Reset into DoH (443) and DoT (853)
                         Button(
                             onClick = {
                                 textContent = "server=dns.google\nport=443\nprotocol=DOH\nipv4=true\nipv6=false"
                             },
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            contentPadding = PaddingValues(2.dp)
                         ) {
-                            Text("Reset", color = Color(0xFFFFD60A), fontSize = 12.sp)
+                            Text("Reset DoH", color = Color(0xFFFFD60A), fontSize = 10.sp)
+                        }
+                        
+                        Spacer(modifier = Modifier.width(4.dp))
+                        
+                        Button(
+                            onClick = {
+                                textContent = "server=dns.google\nport=853\nprotocol=DOT\nipv4=true\nipv6=false"
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            contentPadding = PaddingValues(2.dp)
+                        ) {
+                            Text("Reset DoT", color = Color(0xFFFFD60A), fontSize = 10.sp)
                         }
                     }
                 }
@@ -772,13 +785,19 @@ fun executeDotQuery(settings: AppSettings, domain: String, recordType: String): 
     return try {
         val socketFactory = SSLSocketFactory.getDefault()
         val socket = socketFactory.createSocket(settings.server, settings.port) as SSLSocket
-        socket.soTimeout = 5000 // 5 sec timeout
+        socket.soTimeout = 5000 
+        
+        // !!! IMPORTANT FOR DoT: Enable SNI !!!
+        val sslParams = socket.sslParameters
+        sslParams.endpointIdentificationAlgorithm = "HTTPS"
+        socket.sslParameters = sslParams
+        
         socket.startHandshake()
 
         val output = DataOutputStream(socket.outputStream)
         val input = DataInputStream(socket.inputStream)
 
-        // DoT uses RFC 7858: 2-byte length prefix + DNS message
+        // RFC 7858: 2-byte length prefix
         output.writeShort(queryBytes.size)
         output.write(queryBytes)
         output.flush()
@@ -801,9 +820,9 @@ fun createDnsQueryPacket(domain: String, type: Int): ByteArray {
     val baos = ByteArrayOutputStream()
     val dos = DataOutputStream(baos)
 
-    dos.writeShort(0x1234) // ID
-    dos.writeShort(0x0100) // Flags (Recursion Desired)
-    dos.writeShort(1)      // QDCOUNT
+    dos.writeShort(0x1234)
+    dos.writeShort(0x0100)
+    dos.writeShort(1)
     dos.writeShort(0)
     dos.writeShort(0)
     dos.writeShort(0)
@@ -816,7 +835,7 @@ fun createDnsQueryPacket(domain: String, type: Int): ByteArray {
     dos.writeByte(0)
 
     dos.writeShort(type)
-    dos.writeShort(1) // Class IN
+    dos.writeShort(1)
 
     return baos.toByteArray()
 }
@@ -833,19 +852,17 @@ fun parseDnsResponsePacket(data: ByteArray, reqType: Int): List<String> {
         dis.readShort()
         dis.readShort()
 
-        // Skip Questions
         for (i in 0 until qdCount) {
             skipName(dis)
             dis.readShort()
             dis.readShort()
         }
 
-        // Parse Answers
         for (i in 0 until anCount) {
             skipName(dis)
             val type = dis.readShort().toInt() and 0xFFFF
             dis.readShort()
-            dis.readInt() // TTL
+            dis.readInt()
             val rdLength = dis.readShort().toInt() and 0xFFFF
 
             val rData = ByteArray(rdLength)
