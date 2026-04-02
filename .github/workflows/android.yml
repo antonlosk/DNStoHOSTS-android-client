@@ -23,9 +23,9 @@ jobs:
 
     # Устанавливаем Gradle 9.1 явно, так как нет враппера
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
+      uses: gradle/actions/setup-gradle@v5
       with:
-        gradle-version: '9.4.1'
+        gradle-version: '9.1.0'
 
     - name: Calculate Next Version
       id: version_calc
